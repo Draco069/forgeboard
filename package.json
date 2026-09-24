@@ -1,0 +1,45 @@
+{
+  "name": "forgeboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local-first AI workbench for developers",
+  "main": "./out/main/index.js",
+  "author": "Forgeboard contributors",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dist": "npm run build && electron-builder",
+    "dist:dir": "npm run build && electron-builder --dir"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "latest",
+    "electron-vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
+    "@testing-library/user-event": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@typescript-eslint/eslint-plugin": "latest",
+    "@typescript-eslint/parser": "latest",
+    "eslint": "latest",
+    "jsdom": "latest",
+    "typescript": "latest",
+    "vite": "7.3.6",
+    "vitest": "latest",
+    "electron-builder": "latest"
+  }
+}
