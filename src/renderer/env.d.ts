@@ -1,5 +1,5 @@
 interface ForgeboardBridge {
-  ping: () => Promise<{ app: string; version: string }>;
+  ping: () => Promise<import("../shared/types").AppPing>;
 }
 
 interface Window {
