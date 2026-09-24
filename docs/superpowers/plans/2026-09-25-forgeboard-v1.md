@@ -238,7 +238,7 @@ git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "chore:
 - `serializePromptMarkdown(prompt: Prompt): string` and `parsePromptMarkdown(markdown: string): PromptDraft` provide a reversible Markdown representation for a single prompt.
 - `parseStoreDocument(value: unknown): StoreDocument` validates persisted data and migrations.
 
-- [ ] **Step 1: Write failing prompt utility tests**
+- [x] **Step 1: Write failing prompt utility tests**
 
 Cover valid variables, duplicates, missing values, and literal braces:
 
@@ -257,7 +257,7 @@ it("reports missing variables without losing the template", () => {
 });
 ```
 
-- [ ] **Step 2: Implement the prompt module**
+- [x] **Step 2: Implement the prompt module**
 
 Use a strict variable token of letters, digits, underscore, and hyphen, with a non-empty name:
 
@@ -280,11 +280,11 @@ export function renderPrompt(template: string, values: Record<string, string>) {
 }
 ```
 
-- [ ] **Step 3: Write failing error and serialization tests**
+- [x] **Step 3: Write failing error and serialization tests**
 
 Test that a bearer token is redacted, an Electron error becomes a safe app error, Markdown includes title/tags/body, and JSON import/export preserves IDs and timestamps.
 
-- [ ] **Step 4: Implement errors, Markdown, and validation**
+- [x] **Step 4: Implement errors, Markdown, and validation**
 
 Define stable error codes:
 
@@ -306,7 +306,7 @@ export type AppErrorCode =
 
 Use a Markdown format with a title heading, description, tags, and body separated by a fixed `---` marker. Parse only the fields Forgeboard owns and reject malformed frontmatter with `AppErrorCode.VALIDATION`.
 
-- [ ] **Step 5: Run focused tests and typecheck**
+- [x] **Step 5: Run focused tests and typecheck**
 
 ```bash
 npm test -- --run tests/prompt.test.ts tests/errors.test.ts tests/serialization.test.ts
@@ -315,7 +315,7 @@ npm run typecheck
 
 Expected: all tests pass and TypeScript reports no errors.
 
-- [ ] **Step 6: Commit the domain layer**
+- [x] **Step 6: Commit the domain layer**
 
 ```bash
 git add src/shared src/renderer/env.d.ts tests/prompt.test.ts tests/errors.test.ts tests/serialization.test.ts
