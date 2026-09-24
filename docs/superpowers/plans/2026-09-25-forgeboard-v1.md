@@ -79,7 +79,7 @@
 - Produces `window.forgeboard.ping(): Promise<{ app: string; version: string }>` for the initial shell.
 - The later bridge will replace `ping` without changing the renderer's isolation model.
 
-- [ ] **Step 1: Create package metadata and scripts**
+- [x] **Step 1: Create package metadata and scripts**
 
 Use the following package contract:
 
@@ -133,7 +133,7 @@ Use the following package contract:
 
 After creating the file, run `npm install` and commit the generated `package-lock.json` with the scaffold.
 
-- [ ] **Step 2: Configure electron-vite and TypeScript**
+- [x] **Step 2: Configure electron-vite and TypeScript**
 
 Use `electron.vite.config.ts`:
 
@@ -156,7 +156,7 @@ export default defineConfig({
 
 Use a renderer `tsconfig.json` that includes `src/renderer`, `src/shared`, and `tests`, and a node `tsconfig.node.json` that includes `src/main`, `src/preload`, and configuration files. Set `strict: true`, `noEmit: true`, `moduleResolution: "bundler"`, and `jsx: "react-jsx"`.
 
-- [ ] **Step 3: Add the initial secure Electron window**
+- [x] **Step 3: Add the initial secure Electron window**
 
 Implement `src/main/index.ts` with `app.whenReady()`, one `BrowserWindow`, and these security options:
 
@@ -181,11 +181,11 @@ contextBridge.exposeInMainWorld("forgeboard", {
 });
 ```
 
-- [ ] **Step 4: Add the initial renderer shell and accessibility baseline**
+- [x] **Step 4: Add the initial renderer shell and accessibility baseline**
 
 Render a centered Forgeboard welcome card with a visible product name, a short local-first description, and a `data-testid="app-shell"` root. Use semantic `header`, `main`, and `button` elements, visible focus styles, and a CSS custom-property palette that supports light and dark color schemes.
 
-- [ ] **Step 5: Write and run the shell test**
+- [x] **Step 5: Write and run the shell test**
 
 Mock `window.forgeboard.ping` in `tests/app-shell.test.tsx`, render `App`, and assert that the product name and readiness message appear:
 
@@ -207,7 +207,7 @@ npm run build
 
 Expected: all three commands pass.
 
-- [ ] **Step 6: Commit the scaffold**
+- [x] **Step 6: Commit the scaffold**
 
 ```bash
 git add package.json package-lock.json electron.vite.config.ts tsconfig.json tsconfig.node.json vitest.config.ts eslint.config.js .gitignore src tests/app-shell.test.tsx
