@@ -1,10 +1,22 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { normalizeAppError } from "../shared/errors";
-import type { AppError, AppPing, Theme } from "../shared/types";
+import { extractVariables } from "../shared/prompt";
+import type {
+  AppError,
+  AppPing,
+  Prompt,
+  PromptDraft,
+  PromptSaveInput,
+  Theme,
+} from "../shared/types";
 import { AppShell } from "./components/AppShell";
 import { EmptyState } from "./components/EmptyState";
 import { Icon } from "./components/Icon";
+import { PromptEditor } from "./components/PromptEditor";
+import { PromptList } from "./components/PromptList";
+import { WorkspaceMenu } from "./components/WorkspaceMenu";
 import { useForgeboard } from "./hooks/useForgeboard";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import {
   createLoadingRendererState,
   type LiveRun,
@@ -17,6 +29,13 @@ interface BridgeStatus {
 }
 
 const loadingState = createLoadingRendererState();
+const emptyPromptDraft: PromptDraft = {
+  title: "",
+  description: "",
+  body: "",
+  tags: [],
+  favorite: false,
+};
 
 function useBridgeStatus(): BridgeStatus {
   const [ping, setPing] = useState<AppPing | null>(null);
@@ -157,59 +176,107 @@ function ActiveRunSummary({ run }: { run: LiveRun | null }) {
   );
 }
 
-function PromptOverview({
-  state,
-  onCreatePrompt,
-}: {
+function promptToDraft(prompt: Prompt): PromptDraft {
+  return {
+    title: prompt.title,
+    description: prompt.description,
+    body: prompt.body,
+    tags: [...prompt.tags],
+    favorite: prompt.favorite,
+  };
+}
+
+interface PromptLibraryProps {
   state: RendererState;
+  draft: PromptDraft;
+  variableValues: Record<string, string>;
+  promptError: string | null;
+  promptNotice: string | null;
+  savingPrompt: boolean;
+  onDraftChange: (draft: PromptDraft) => void;
+  onVariableValuesChange: (values: Record<string, string>) => void;
+  onSavePrompt: (draft: PromptDraft) => Promise<void>;
+  onCancelPrompt: () => void;
   onCreatePrompt: () => void;
-}) {
-  const prompts = state.document.prompts.filter(
-    (prompt) => prompt.workspaceId === state.activeWorkspace.id,
+  onSelectPrompt: (prompt: Prompt) => void;
+  onToggleFavorite: (prompt: Prompt) => void;
+  onSearchChange: (search: string) => void;
+  promptSearchRef: RefObject<HTMLInputElement | null>;
+  onWorkspaceChange: (workspaceId: string) => void;
+  onCreateWorkspace: (name: string) => Promise<void>;
+  onRenameWorkspace: (workspaceId: string, name: string) => Promise<void>;
+  onDeleteWorkspace: (workspaceId: string) => Promise<void>;
+}
+
+function PromptLibrary({
+  state,
+  draft,
+  variableValues,
+  promptError,
+  promptNotice,
+  savingPrompt,
+  onDraftChange,
+  onVariableValuesChange,
+  onSavePrompt,
+  onCancelPrompt,
+  onCreatePrompt,
+  onSelectPrompt,
+  onToggleFavorite,
+  onSearchChange,
+  promptSearchRef,
+  onWorkspaceChange,
+  onCreateWorkspace,
+  onRenameWorkspace,
+  onDeleteWorkspace,
+}: PromptLibraryProps) {
+  const prompts = useMemo(
+    () => state.document.prompts.filter((prompt) => prompt.workspaceId === state.activeWorkspace.id),
+    [state.activeWorkspace.id, state.document.prompts],
   );
 
-  if (prompts.length === 0) {
-    return (
-      <EmptyState
-        actionLabel="Create your first prompt"
-        description="Keep the instructions you reach for most close at hand. Your first prompt will live in this workspace and stay on this device."
-        eyebrow="Prompt library"
-        icon="spark"
-        onAction={onCreatePrompt}
-        title="Start with a reusable instruction."
-      />
-    );
-  }
-
   return (
-    <section className="view-panel" aria-labelledby="prompt-overview-title">
-      <div className="view-intro">
-        <p className="section-kicker">Prompt library</p>
-        <h1 id="prompt-overview-title">Reusable instructions, close at hand.</h1>
-        <p>
-          Your workspace holds {prompts.length} {prompts.length === 1 ? "prompt" : "prompts"}. The
-          editing surface is the next step in this workbench.
-        </p>
-      </div>
-      <div className="library-ledger" aria-label="Prompt library summary">
-        <div>
-          <span className="ledger-value">{prompts.length}</span>
-          <span className="ledger-label">saved prompts</span>
+    <div className="prompt-library-view">
+      <div className="library-toolbar">
+        <div className="library-toolbar-copy">
+          <p className="section-kicker">Prompt library</p>
+          <h1>Reusable instructions, close at hand.</h1>
+          <p>Search, shape, and save the prompts you reach for most.</p>
         </div>
-        <div>
-          <span className="ledger-value">{prompts.filter((prompt) => prompt.favorite).length}</span>
-          <span className="ledger-label">favorites</span>
-        </div>
-        <div>
-          <span className="ledger-value">{new Set(prompts.flatMap((prompt) => prompt.tags)).size}</span>
-          <span className="ledger-label">tags in use</span>
-        </div>
+        <WorkspaceMenu
+          activeWorkspaceId={state.activeWorkspace.id}
+          onCreateWorkspace={onCreateWorkspace}
+          onDeleteWorkspace={onDeleteWorkspace}
+          onRenameWorkspace={onRenameWorkspace}
+          onWorkspaceChange={onWorkspaceChange}
+          workspaces={state.document.workspaces}
+        />
       </div>
-      <div className="quiet-next-step">
-        <Icon name="spark" size={17} />
-        <span>Prompt editing and filtering will land here without changing your local data.</span>
+
+      <div className="library-columns">
+        <PromptList
+          inputRef={promptSearchRef}
+          onCreatePrompt={onCreatePrompt}
+          onSearchChange={onSearchChange}
+          onSelect={onSelectPrompt}
+          onToggleFavorite={onToggleFavorite}
+          prompts={prompts}
+          search={state.search}
+          selectedPromptId={state.selectedPromptId}
+        />
+        <PromptEditor
+          draft={draft}
+          error={promptError}
+          isNew={!state.selectedPromptId}
+          notice={promptNotice}
+          onCancel={onCancelPrompt}
+          onChange={onDraftChange}
+          onSave={onSavePrompt}
+          onVariableValuesChange={onVariableValuesChange}
+          saving={savingPrompt}
+          variableValues={variableValues}
+        />
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -258,18 +325,74 @@ function SettingsOverview() {
   );
 }
 
+interface ActiveViewProps {
+  state: RendererState;
+  promptDraft: PromptDraft;
+  variableValues: Record<string, string>;
+  promptError: string | null;
+  promptNotice: string | null;
+  savingPrompt: boolean;
+  onCreatePrompt: () => void;
+  onSelectPrompt: (prompt: Prompt) => void;
+  onToggleFavorite: (prompt: Prompt) => void;
+  onSearchChange: (search: string) => void;
+  onDraftChange: (draft: PromptDraft) => void;
+  onVariableValuesChange: (values: Record<string, string>) => void;
+  onSavePrompt: (draft: PromptDraft) => Promise<void>;
+  onCancelPrompt: () => void;
+  onWorkspaceChange: (workspaceId: string) => void;
+  onCreateWorkspace: (name: string) => Promise<void>;
+  onRenameWorkspace: (workspaceId: string, name: string) => Promise<void>;
+  onDeleteWorkspace: (workspaceId: string) => Promise<void>;
+  promptSearchRef: RefObject<HTMLInputElement | null>;
+}
+
 function ActiveView({
   state,
+  promptDraft,
+  variableValues,
+  promptError,
+  promptNotice,
+  savingPrompt,
   onCreatePrompt,
-}: {
-  state: RendererState;
-  onCreatePrompt: () => void;
-}) {
+  onSelectPrompt,
+  onToggleFavorite,
+  onSearchChange,
+  onDraftChange,
+  onVariableValuesChange,
+  onSavePrompt,
+  onCancelPrompt,
+  onWorkspaceChange,
+  onCreateWorkspace,
+  onRenameWorkspace,
+  onDeleteWorkspace,
+  promptSearchRef,
+}: ActiveViewProps) {
   return (
     <>
       <ActiveRunSummary run={state.activeRun} />
       {state.view === "prompts" ? (
-        <PromptOverview onCreatePrompt={onCreatePrompt} state={state} />
+        <PromptLibrary
+          draft={promptDraft}
+          onCancelPrompt={onCancelPrompt}
+          onCreatePrompt={onCreatePrompt}
+          onCreateWorkspace={onCreateWorkspace}
+          onDeleteWorkspace={onDeleteWorkspace}
+          onDraftChange={onDraftChange}
+          onRenameWorkspace={onRenameWorkspace}
+          onSavePrompt={onSavePrompt}
+          onSearchChange={onSearchChange}
+          onSelectPrompt={onSelectPrompt}
+          onToggleFavorite={onToggleFavorite}
+          onVariableValuesChange={onVariableValuesChange}
+          onWorkspaceChange={onWorkspaceChange}
+          promptError={promptError}
+          promptNotice={promptNotice}
+          promptSearchRef={promptSearchRef}
+          savingPrompt={savingPrompt}
+          state={state}
+          variableValues={variableValues}
+        />
       ) : state.view === "history" ? (
         <HistoryOverview state={state} />
       ) : (
@@ -277,6 +400,14 @@ function ActiveView({
       )}
     </>
   );
+}
+
+function getBridge(): NonNullable<Window["forgeboard"]> {
+  const bridge = typeof window === "undefined" ? undefined : window.forgeboard;
+  if (!bridge) {
+    throw new Error("The local Forgeboard bridge is unavailable.");
+  }
+  return bridge;
 }
 
 function App() {
@@ -287,19 +418,188 @@ function App() {
     refresh,
     navigate,
     selectPrompt,
+    setSearch,
     setTheme,
   } = useForgeboard();
   const bridgeStatus = useBridgeStatus();
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [promptNotice, setPromptNotice] = useState<string | null>(null);
+  const [savingPrompt, setSavingPrompt] = useState(false);
+  const [promptDraft, setPromptDraft] = useState<PromptDraft>(emptyPromptDraft);
+  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+  const promptSearchRef = useRef<HTMLInputElement>(null);
+  const selectedPromptIdRef = useRef<string | undefined>(undefined);
+  const valuesByPromptRef = useRef<Record<string, Record<string, string>>>({});
 
   useEffect(() => {
     document.documentElement.dataset.theme = state?.theme ?? "system";
   }, [state?.theme]);
 
+  useEffect(() => {
+    if (!state) {
+      return;
+    }
+
+    const nextSelectedId = state.selectedPromptId;
+    if (nextSelectedId === selectedPromptIdRef.current) {
+      return;
+    }
+    selectedPromptIdRef.current = nextSelectedId;
+
+    if (!nextSelectedId) {
+      setPromptDraft({ ...emptyPromptDraft, tags: [] });
+      setVariableValues({});
+      setPromptError(null);
+      setPromptNotice(null);
+      return;
+    }
+
+    const selectedPrompt = state.document.prompts.find(
+      (prompt) => prompt.id === nextSelectedId && prompt.workspaceId === state.activeWorkspace.id,
+    );
+    if (!selectedPrompt) {
+      return;
+    }
+
+    setPromptDraft(promptToDraft(selectedPrompt));
+    setVariableValues({ ...(valuesByPromptRef.current[nextSelectedId] ?? {}) });
+    setPromptError(null);
+    setPromptNotice(null);
+  }, [state]);
+
   const handleCreatePrompt = useCallback(() => {
+    selectedPromptIdRef.current = undefined;
+    setPromptDraft({ ...emptyPromptDraft, tags: [] });
+    setVariableValues({});
+    setPromptError(null);
+    setPromptNotice(null);
+    setSearch("");
     navigate("prompts");
     selectPrompt(undefined);
-  }, [navigate, selectPrompt]);
+  }, [navigate, selectPrompt, setSearch]);
+
+  const handleSelectPrompt = useCallback(
+    (prompt: Prompt) => {
+      if (!state || prompt.workspaceId !== state.activeWorkspace.id) {
+        return;
+      }
+      selectedPromptIdRef.current = prompt.id;
+      setPromptDraft(promptToDraft(prompt));
+      setVariableValues({ ...(valuesByPromptRef.current[prompt.id] ?? {}) });
+      setPromptError(null);
+      setPromptNotice(null);
+      selectPrompt(prompt.id);
+    },
+    [selectPrompt, state],
+  );
+
+  const handleCancelPrompt = useCallback(() => {
+    if (!state) {
+      return;
+    }
+    const selectedPrompt = state.selectedPromptId
+      ? state.document.prompts.find((prompt) => prompt.id === state.selectedPromptId)
+      : undefined;
+    if (selectedPrompt) {
+      setPromptDraft(promptToDraft(selectedPrompt));
+      setVariableValues({ ...(valuesByPromptRef.current[selectedPrompt.id] ?? {}) });
+    } else {
+      setPromptDraft({ ...emptyPromptDraft, tags: [] });
+      setVariableValues({});
+    }
+    setPromptError(null);
+    setPromptNotice(null);
+  }, [state]);
+
+  const handleDraftChange = useCallback((nextDraft: PromptDraft) => {
+    setPromptDraft(nextDraft);
+    setPromptError(null);
+    setPromptNotice(null);
+  }, []);
+
+  const handleVariableValuesChange = useCallback(
+    (nextValues: Record<string, string>) => {
+      setVariableValues(nextValues);
+      const selectedId = selectedPromptIdRef.current;
+      if (selectedId) {
+        valuesByPromptRef.current[selectedId] = { ...nextValues };
+      }
+    },
+    [],
+  );
+
+  const handleSavePrompt = useCallback(
+    async (draft: PromptDraft): Promise<void> => {
+      if (!state) {
+        return;
+      }
+      const missingVariables = extractVariables(draft.body).filter(
+        (variable) => !(variableValues[variable] ?? "").trim(),
+      );
+      if (draft.title.trim().length === 0 || missingVariables.length > 0) {
+        setPromptError(
+          draft.title.trim().length === 0
+            ? "Add a title before saving this prompt."
+            : `Fill in the required variables: ${missingVariables.join(", ")}.`,
+        );
+        return;
+      }
+
+      setSavingPrompt(true);
+      setPromptError(null);
+      setPromptNotice(null);
+      try {
+        const input: PromptSaveInput = {
+          workspaceId: state.activeWorkspace.id,
+          title: draft.title,
+          description: draft.description,
+          body: draft.body,
+          tags: draft.tags,
+          favorite: draft.favorite,
+          ...(state.selectedPromptId ? { id: state.selectedPromptId } : {}),
+        };
+        const savedPrompt = await getBridge().savePrompt(input);
+        if (savedPrompt?.id) {
+          valuesByPromptRef.current[savedPrompt.id] = { ...variableValues };
+          selectPrompt(savedPrompt.id);
+        }
+        await refresh();
+        setPromptNotice("Prompt saved locally.");
+      } catch (cause) {
+        const appError = normalizeAppError(cause);
+        setPromptError(appError.message);
+        throw new Error(appError.message);
+      } finally {
+        setSavingPrompt(false);
+      }
+    },
+    [refresh, selectPrompt, state, variableValues],
+  );
+
+  const handleToggleFavorite = useCallback(
+    async (prompt: Prompt) => {
+      setPromptError(null);
+      try {
+        await getBridge().savePrompt({
+          id: prompt.id,
+          workspaceId: prompt.workspaceId,
+          title: prompt.title,
+          description: prompt.description,
+          body: prompt.body,
+          tags: prompt.tags,
+          favorite: !prompt.favorite,
+        });
+        if (selectedPromptIdRef.current === prompt.id) {
+          setPromptDraft((current) => ({ ...current, favorite: !prompt.favorite }));
+        }
+        await refresh();
+      } catch (cause) {
+        setPromptError(normalizeAppError(cause).message);
+      }
+    },
+    [refresh],
+  );
 
   const handleWorkspaceChange = useCallback(
     (workspaceId: string) => {
@@ -307,21 +607,114 @@ function App() {
         return;
       }
       setWorkspaceError(null);
+      setSearch("");
+      selectedPromptIdRef.current = undefined;
+      setPromptDraft({ ...emptyPromptDraft, tags: [] });
+      setVariableValues({});
+      selectPrompt(undefined);
       void (async () => {
         try {
-          const bridge = typeof window === "undefined" ? undefined : window.forgeboard;
-          if (!bridge || typeof bridge.setActiveWorkspace !== "function") {
-            throw new Error("The local Forgeboard bridge is unavailable.");
-          }
-          await bridge.setActiveWorkspace(workspaceId);
+          await getBridge().setActiveWorkspace(workspaceId);
           await refresh();
         } catch (cause) {
           setWorkspaceError(normalizeAppError(cause).message);
         }
       })();
     },
-    [refresh, state],
+    [refresh, selectPrompt, setSearch, state],
   );
+
+  const handleCreateWorkspace = useCallback(
+    async (name: string): Promise<void> => {
+      setWorkspaceError(null);
+      setSearch("");
+      try {
+        const created = await getBridge().createWorkspace(name);
+        if (created?.id && state && created.id !== state.activeWorkspace.id) {
+          await getBridge().setActiveWorkspace(created.id);
+        }
+        await refresh();
+      } catch (cause) {
+        setWorkspaceError(normalizeAppError(cause).message);
+        throw new Error(normalizeAppError(cause).message);
+      }
+    },
+    [refresh, setSearch, state],
+  );
+
+  const handleRenameWorkspace = useCallback(
+    async (workspaceId: string, name: string): Promise<void> => {
+      setWorkspaceError(null);
+      try {
+        await getBridge().renameWorkspace(workspaceId, name);
+        await refresh();
+      } catch (cause) {
+        const appError = normalizeAppError(cause);
+        setWorkspaceError(appError.message);
+        throw new Error(appError.message);
+      }
+    },
+    [refresh],
+  );
+
+  const handleDeleteWorkspace = useCallback(
+    async (workspaceId: string): Promise<void> => {
+      setWorkspaceError(null);
+      try {
+        const nextActive = await getBridge().deleteWorkspace(workspaceId);
+        const fallbackWorkspace =
+          nextActive ?? state?.document.workspaces.find((workspace) => workspace.id !== workspaceId);
+        if (
+          state &&
+          workspaceId === state.activeWorkspace.id &&
+          fallbackWorkspace &&
+          fallbackWorkspace.id !== workspaceId
+        ) {
+          await getBridge().setActiveWorkspace(fallbackWorkspace.id);
+          selectedPromptIdRef.current = undefined;
+          setPromptDraft({ ...emptyPromptDraft, tags: [] });
+          setVariableValues({});
+          selectPrompt(undefined);
+        }
+        await refresh();
+      } catch (cause) {
+        const appError = normalizeAppError(cause);
+        setWorkspaceError(appError.message);
+        throw new Error(appError.message);
+      }
+    },
+    [refresh, selectPrompt, state],
+  );
+
+  const handleFocusSearch = useCallback(() => {
+    const input = promptSearchRef.current ?? document.getElementById("prompt-search");
+    if (input instanceof HTMLInputElement) {
+      input.focus();
+      return;
+    }
+    navigate("prompts");
+    window.requestAnimationFrame(() => document.getElementById("prompt-search")?.focus());
+  }, [navigate]);
+
+  const handleRun = useCallback(() => {
+    const missingVariables = extractVariables(promptDraft.body).filter(
+      (variable) => !(variableValues[variable] ?? "").trim(),
+    );
+    if (promptDraft.title.trim().length === 0) {
+      setPromptError("Add a title before running this prompt.");
+    } else if (missingVariables.length > 0) {
+      setPromptError(`Fill in the required variables: ${missingVariables.join(", ")}.`);
+    } else {
+      setPromptError(null);
+      setPromptNotice("Prompt execution will be connected in the next workbench step.");
+    }
+  }, [promptDraft.body, promptDraft.title, variableValues]);
+
+  useKeyboardShortcuts({
+    onFocusSearch: handleFocusSearch,
+    onNewPrompt: handleCreatePrompt,
+    onRun: handleRun,
+  });
 
   const handleThemeChange = useCallback(
     (theme: Theme) => {
@@ -358,7 +751,27 @@ function App() {
       state={displayState}
     >
       {state ? (
-        <ActiveView onCreatePrompt={handleCreatePrompt} state={state} />
+        <ActiveView
+          onCancelPrompt={handleCancelPrompt}
+          onCreatePrompt={handleCreatePrompt}
+          onCreateWorkspace={handleCreateWorkspace}
+          onDeleteWorkspace={handleDeleteWorkspace}
+          onDraftChange={handleDraftChange}
+          onRenameWorkspace={handleRenameWorkspace}
+          onSavePrompt={handleSavePrompt}
+          onSearchChange={setSearch}
+          onSelectPrompt={handleSelectPrompt}
+          onToggleFavorite={handleToggleFavorite}
+          onVariableValuesChange={handleVariableValuesChange}
+          onWorkspaceChange={handleWorkspaceChange}
+          promptDraft={promptDraft}
+          promptError={promptError}
+          promptNotice={promptNotice}
+          promptSearchRef={promptSearchRef}
+          savingPrompt={savingPrompt}
+          state={state}
+          variableValues={variableValues}
+        />
       ) : loading ? (
         <LoadingView status={bridgeStatus} />
       ) : (
