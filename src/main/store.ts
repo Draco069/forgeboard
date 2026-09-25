@@ -39,6 +39,9 @@ const STORE_FILE_NAME = "forgeboard.json";
 const BACKUP_DIRECTORY_NAME = "backups";
 const BACKUP_COUNT = 3;
 const TEMPORARY_FILE_SUFFIX = ".tmp";
+// The connection draft shares the persisted-record schema, so use a valid
+// placeholder timestamp.
+const DRAFT_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 
 export interface StoreFileHandle {
   writeFile(data: string, encoding?: "utf8"): Promise<unknown>;
@@ -192,8 +195,8 @@ function parseConnectionDraft(
     ...(value as Record<string, unknown>),
     id: "draft",
     hasCredential: false,
-    createdAt: "draft",
-    updatedAt: "draft",
+    createdAt: DRAFT_TIMESTAMP,
+    updatedAt: DRAFT_TIMESTAMP,
   });
   if (!result.success) {
     throw createValidationError("The connection is not valid.");

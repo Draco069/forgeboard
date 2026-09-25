@@ -13,29 +13,65 @@ export const MARKDOWN_BODY_SEPARATOR = "---";
 const ESCAPED_BODY_SEPARATOR = "<!-- forgeboard:body-separator -->";
 const ESCAPED_BODY_SEPARATOR_LITERAL =
   "<!-- forgeboard:escaped-body-separator -->";
+// Legacy Markdown has no bodyEncoding field and remains plain text. New
+// documents use this envelope only when the body contains parser-significant
+// Forgeboard comments or separator lines.
+const BODY_ENCODING_FIELD = "bodyEncoding";
+const BODY_ENCODING_FIELD_KEY = BODY_ENCODING_FIELD.toLowerCase();
+const BODY_ENCODING_VERSION = "json-v1";
+const ENCODED_BODY_PREFIX = "<!-- forgeboard:body-json-v1:";
+const ENCODED_BODY_SUFFIX = " -->";
 
-function escapeBody(value: string): string {
+function escapeMarkdownValue(value: string): string {
   return value
     .split(ESCAPED_BODY_SEPARATOR)
     .join(ESCAPED_BODY_SEPARATOR_LITERAL)
     .split(/\r?\n/)
-    .map((line) => (line === MARKDOWN_BODY_SEPARATOR ? ESCAPED_BODY_SEPARATOR : line))
+    .map((line) =>
+      line.trim() === MARKDOWN_BODY_SEPARATOR ? ESCAPED_BODY_SEPARATOR : line,
+    )
     .join("\n");
 }
 
-function unescapeBody(value: string): string {
-  return value
-    .split(/\r?\n/)
-    .map((line) => {
-      if (line === ESCAPED_BODY_SEPARATOR_LITERAL) {
-        return ESCAPED_BODY_SEPARATOR;
-      }
-      if (line === ESCAPED_BODY_SEPARATOR) {
-        return MARKDOWN_BODY_SEPARATOR;
-      }
-      return line;
-    })
-    .join("\n");
+function bodyNeedsEncoding(value: string): boolean {
+  const normalized = value.replace(/\r\n?/g, "\n");
+  return (
+    value.includes("\r") ||
+    /<!--\s*forgeboard/i.test(value) ||
+    normalized
+      .split("\n")
+      .some((line) => line.trim() === MARKDOWN_BODY_SEPARATOR)
+  );
+}
+
+function encodeBody(value: string): string {
+  return `${ENCODED_BODY_PREFIX}${JSON.stringify(value)}${ENCODED_BODY_SUFFIX}`;
+}
+
+function decodeBody(value: string): string {
+  if (
+    !value.startsWith(ENCODED_BODY_PREFIX) ||
+    !value.endsWith(ENCODED_BODY_SUFFIX) ||
+    value.length < ENCODED_BODY_PREFIX.length + ENCODED_BODY_SUFFIX.length
+  ) {
+    throw createValidationError("Prompt Markdown body encoding is malformed.");
+  }
+
+  const encoded = value.slice(
+    ENCODED_BODY_PREFIX.length,
+    -ENCODED_BODY_SUFFIX.length,
+  );
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(encoded);
+  } catch {
+    throw createValidationError("Prompt Markdown body encoding is malformed.");
+  }
+
+  if (typeof decoded !== "string") {
+    throw createValidationError("Prompt Markdown body encoding is malformed.");
+  }
+  return decoded;
 }
 
 function parseScalar(value: string): unknown {
@@ -124,7 +160,9 @@ function parseFrontmatter(lines: string[]): Record<string, unknown> {
     const key = field[1].toLowerCase();
     const rawValue = field[2]?.trim() ?? "";
 
-    if (!["title", "description", "tags", "favorite"].includes(key)) {
+    if (
+      !["title", "description", "tags", "favorite", BODY_ENCODING_FIELD_KEY].includes(key)
+    ) {
       listKey = undefined;
       continue;
     }
@@ -182,7 +220,7 @@ function splitFrontmatter(markdown: string): {
   };
 }
 
-function parseBody(content: string): string {
+function parseBody(content: string, bodyEncoding: unknown): string {
   const lines = content.split("\n");
   const separatorIndex = lines.findIndex(
     (line) => line.trim() === MARKDOWN_BODY_SEPARATOR,
@@ -196,7 +234,13 @@ function parseBody(content: string): string {
     body = body.slice(1);
   }
 
-  return unescapeBody(body);
+  if (bodyEncoding === BODY_ENCODING_VERSION) {
+    return decodeBody(body);
+  }
+  if (bodyEncoding !== undefined) {
+    throw createValidationError("Prompt Markdown body encoding is unsupported.");
+  }
+  return body;
 }
 
 function displayTags(tags: string[]): string {
@@ -210,8 +254,14 @@ function displayTags(tags: string[]): string {
 export function serializePromptMarkdown(prompt: Prompt): string {
   const validPrompt = parsePrompt(prompt);
   const safeTitle = validPrompt.title.replace(/\r?\n/g, " ");
-  const safeDescription = escapeBody(validPrompt.description);
-  const safeTags = escapeBody(displayTags(validPrompt.tags));
+  const safeDescription = escapeMarkdownValue(validPrompt.description);
+  const safeTags = escapeMarkdownValue(displayTags(validPrompt.tags));
+  const encodedBody = bodyNeedsEncoding(validPrompt.body)
+    ? {
+        value: encodeBody(validPrompt.body),
+        encoding: BODY_ENCODING_VERSION,
+      }
+    : { value: escapeMarkdownValue(validPrompt.body) };
 
   return [
     MARKDOWN_FRONTMATTER_MARKER,
@@ -219,6 +269,9 @@ export function serializePromptMarkdown(prompt: Prompt): string {
     `description: ${JSON.stringify(validPrompt.description)}`,
     `tags: ${JSON.stringify(validPrompt.tags)}`,
     `favorite: ${validPrompt.favorite}`,
+    ...(encodedBody.encoding
+      ? [`${BODY_ENCODING_FIELD}: ${JSON.stringify(encodedBody.encoding)}`]
+      : []),
     MARKDOWN_FRONTMATTER_MARKER,
     "",
     `# ${safeTitle}`,
@@ -229,7 +282,7 @@ export function serializePromptMarkdown(prompt: Prompt): string {
     "",
     MARKDOWN_BODY_SEPARATOR,
     "",
-    escapeBody(validPrompt.body),
+    encodedBody.value,
   ].join("\n");
 }
 
@@ -239,6 +292,7 @@ export function parsePromptMarkdown(markdown: string): PromptDraft {
   const description = fields.description;
   const tags = fields.tags;
   const favorite = fields.favorite;
+  const bodyEncoding = fields[BODY_ENCODING_FIELD_KEY];
 
   if (typeof title !== "string") {
     throw createValidationError("Prompt frontmatter is missing a title.");
@@ -252,11 +306,14 @@ export function parsePromptMarkdown(markdown: string): PromptDraft {
   if (favorite !== undefined && typeof favorite !== "boolean") {
     throw createValidationError("Prompt frontmatter favorite must be true or false.");
   }
+  if (bodyEncoding !== undefined && bodyEncoding !== BODY_ENCODING_VERSION) {
+    throw createValidationError("Prompt Markdown body encoding is unsupported.");
+  }
 
   return parsePromptDraft({
     title,
     description: description ?? "",
-    body: parseBody(content),
+    body: parseBody(content, bodyEncoding),
     tags: tags ?? [],
     favorite: favorite ?? false,
   });

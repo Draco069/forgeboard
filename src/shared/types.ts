@@ -50,7 +50,7 @@ export interface RequestRecord {
   workspaceId: string;
   promptId?: string;
   connectionId: string;
-  provider: string;
+  provider: ProviderKind;
   model: string;
   renderedPrompt: string;
   response: string;

@@ -115,6 +115,63 @@ describe("prompt Markdown serialization", () => {
     });
   });
 
+  it("round-trips Forgeboard sentinels and separator lines in prompt bodies", () => {
+    const body = [
+      "before",
+      "---",
+      "  ---  ",
+      "<!-- forgeboard:body-separator -->",
+      "<!-- forgeboard:escaped-body-separator -->",
+      " <!-- forgeboard:custom-sentinel --> ",
+      "after",
+    ].join("\n");
+    const promptWithSentinels = { ...prompt, body };
+
+    expect(parsePromptMarkdown(serializePromptMarkdown(promptWithSentinels))).toEqual({
+      title: prompt.title,
+      description: prompt.description,
+      body,
+      tags: prompt.tags,
+      favorite: prompt.favorite,
+    });
+  });
+
+  it("preserves raw sentinel comments in legacy plain-body Markdown", () => {
+    const body = [
+      "first line",
+      "---",
+      "<!-- forgeboard:body-separator -->",
+      "<!-- forgeboard:escaped-body-separator -->",
+      "last line",
+    ].join("\n");
+    const markdown = [
+      "---",
+      "title: Legacy prompt",
+      "description: Legacy description",
+      "tags: [legacy]",
+      "favorite: true",
+      "---",
+      "",
+      "# Legacy prompt",
+      "",
+      "Legacy description",
+      "",
+      "Tags: legacy",
+      "",
+      "---",
+      "",
+      body,
+    ].join("\n");
+
+    expect(parsePromptMarkdown(markdown)).toEqual({
+      title: "Legacy prompt",
+      description: "Legacy description",
+      body,
+      tags: ["legacy"],
+      favorite: true,
+    });
+  });
+
   it("rejects malformed frontmatter with a validation app error", () => {
     expect.assertions(2);
 

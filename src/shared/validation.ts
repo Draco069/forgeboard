@@ -23,7 +23,22 @@ const nonEmptyText = z.string().refine((value) => value.trim().length > 0, {
   message: "Value must not be blank.",
 });
 const idSchema = nonEmptyText.max(200);
-const timestampSchema = nonEmptyText.max(100);
+// Forgeboard writes Date#toISOString values, so require that canonical UTC form.
+const canonicalIsoTimestampPattern =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+function isCanonicalIsoTimestamp(value: string): boolean {
+  if (!canonicalIsoTimestampPattern.test(value)) {
+    return false;
+  }
+
+  const timestamp = new Date(value);
+  return !Number.isNaN(timestamp.getTime()) && timestamp.toISOString() === value;
+}
+
+export const timestampSchema = nonEmptyText.max(100).refine(isCanonicalIsoTimestamp, {
+  message: "Timestamp must be a canonical ISO date-time string.",
+});
 const titleSchema = nonEmptyText.max(MAX_PROMPT_TITLE_LENGTH);
 const descriptionSchema = z.string().max(MAX_PROMPT_DESCRIPTION_LENGTH);
 const tagSchema = nonEmptyText.max(MAX_TAG_LENGTH);
@@ -207,6 +222,7 @@ export const storeDocumentSchema: z.ZodType<StoreDocument> = z
     }
   });
 
+export const TimestampSchema = timestampSchema;
 export const WorkspaceSchema = workspaceSchema;
 export const PromptSchema = promptSchema;
 export const ConnectionSchema = connectionSchema;
