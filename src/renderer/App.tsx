@@ -1,16 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { normalizeAppError } from "../shared/errors";
+import {
+  AppErrorException,
+  createAppError,
+  normalizeAppError,
+  redactSecrets,
+} from "../shared/errors";
 import { extractVariables, renderPrompt } from "../shared/prompt";
+import {
+  parsePromptMarkdown,
+  promptMarkdownFilename,
+  sanitizeDownloadFilename,
+  serializePromptMarkdown,
+} from "../shared/serialization";
 import type {
   AppError,
   AppPing,
   Connection,
   ConnectionSaveInput,
+  ImportReport,
   Prompt,
   PromptDraft,
   PromptSaveInput,
   RequestRecord,
   RunRequestInput,
+  SettingsUpdateInput,
   Theme,
 } from "../shared/types";
 import { AppShell } from "./components/AppShell";
@@ -19,10 +32,12 @@ import { ConnectionDialog } from "./components/ConnectionDialog";
 import { EmptyState } from "./components/EmptyState";
 import { HistoryList } from "./components/HistoryList";
 import { Icon } from "./components/Icon";
+import { downloadTextFile, JSON_MIME_TYPE, MARKDOWN_MIME_TYPE } from "./components/ImportExportControls";
 import { PromptEditor } from "./components/PromptEditor";
 import { PromptList } from "./components/PromptList";
 import { ResponseViewer } from "./components/ResponseViewer";
 import { RunPanel } from "./components/RunPanel";
+import { SettingsView } from "./components/SettingsView";
 import { WorkspaceMenu } from "./components/WorkspaceMenu";
 import { useForgeboard } from "./hooks/useForgeboard";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -443,17 +458,6 @@ function HistoryView({
   );
 }
 
-function SettingsOverview() {
-  return (
-    <EmptyState
-      description="Theme controls are available in the top bar. Import, export, and preference controls will arrive with the transfer workflow."
-      eyebrow="Preferences"
-      icon="settings"
-      title="Settings are being prepared."
-    />
-  );
-}
-
 interface ActiveViewProps {
   state: RendererState;
   promptDraft: PromptDraft;
@@ -494,6 +498,13 @@ interface ActiveViewProps {
   onComparisonChange: (requestIds: string[]) => void;
   onCompare: (left: RequestRecord, right: RequestRecord) => void;
   onCloseComparison: () => void;
+  onSettingsUpdate: (input: SettingsUpdateInput) => void | Promise<void>;
+  onExportWorkspace: () => Promise<string>;
+  onExportPrompt: (() => Promise<string>) | null;
+  onImportJson: (contents: string) => Promise<ImportReport>;
+  onImportMarkdown: (contents: string, filename: string) => Promise<string>;
+  onDeleteConnection: (connectionId: string) => void | Promise<void>;
+  onThemeChange: (theme: Theme) => void;
 }
 
 function ActiveView({
@@ -536,6 +547,13 @@ function ActiveView({
   onComparisonChange,
   onCompare,
   onCloseComparison,
+  onSettingsUpdate,
+  onExportWorkspace,
+  onExportPrompt,
+  onImportJson,
+  onImportMarkdown,
+  onDeleteConnection,
+  onThemeChange,
 }: ActiveViewProps) {
   return (
     <>
@@ -589,7 +607,18 @@ function ActiveView({
           state={state}
         />
       ) : (
-        <SettingsOverview />
+        <SettingsView
+          onCreateConnection={onCreateConnection}
+          onDeleteConnection={onDeleteConnection}
+          onEditConnection={onEditConnection}
+          onExportPrompt={onExportPrompt}
+          onExportWorkspace={onExportWorkspace}
+          onImportJson={onImportJson}
+          onImportMarkdown={onImportMarkdown}
+          onSettingsUpdate={onSettingsUpdate}
+          onThemeChange={onThemeChange}
+          state={state}
+        />
       )}
     </>
   );
@@ -1146,9 +1175,125 @@ function App() {
 
   const handleThemeChange = useCallback(
     (theme: Theme) => {
+      // The choice is applied immediately so the surface never feels laggy, and
+      // it is then persisted through the bridge and re-read from the store.
       setTheme(theme);
+      void (async () => {
+        try {
+          await getBridge().updateSettings({ theme });
+          await refresh();
+        } catch (cause) {
+          setWorkspaceError(normalizeAppError(cause).message);
+        }
+      })();
     },
-    [setTheme],
+    [refresh, setTheme],
+  );
+
+  const handleSettingsUpdate = useCallback(
+    async (input: SettingsUpdateInput): Promise<void> => {
+      try {
+        await getBridge().updateSettings(input);
+        await refresh();
+      } catch (cause) {
+        throw new AppErrorException(normalizeAppError(cause));
+      }
+    },
+    [refresh],
+  );
+
+  const handleDeleteConnection = useCallback(
+    async (connectionId: string): Promise<void> => {
+      try {
+        await getBridge().deleteConnection(connectionId);
+        await refresh();
+      } catch (cause) {
+        throw new AppErrorException(normalizeAppError(cause));
+      }
+    },
+    [refresh],
+  );
+
+  const handleExportWorkspace = useCallback(async (): Promise<string> => {
+    const data = await getBridge().exportData();
+    if (!data || typeof data.contents !== "string") {
+      throw new AppErrorException(
+        createAppError("STORAGE", "The workspace snapshot could not be prepared."),
+      );
+    }
+    downloadTextFile(data.filename, data.contents, JSON_MIME_TYPE);
+    return sanitizeDownloadFilename(data.filename);
+  }, []);
+
+  const handleExportPromptMarkdown = useCallback(async (): Promise<string> => {
+    if (!state) {
+      throw new AppErrorException(
+        createAppError("STORAGE", "The workspace is still loading."),
+      );
+    }
+    const prompt =
+      state.document.prompts.find(
+        (candidate) =>
+          candidate.id === state.selectedPromptId &&
+          candidate.workspaceId === state.activeWorkspace.id,
+      ) ?? null;
+    if (!prompt) {
+      throw new AppErrorException(
+        createAppError("VALIDATION", "Select a prompt in the library before exporting it."),
+      );
+    }
+    const filename = promptMarkdownFilename(prompt);
+    downloadTextFile(filename, serializePromptMarkdown(prompt), MARKDOWN_MIME_TYPE);
+    return filename;
+  }, [state]);
+
+  const handleImportJson = useCallback(
+    async (contents: string): Promise<ImportReport> => {
+      try {
+        const report = await getBridge().importData(contents);
+        await refresh();
+        return report;
+      } catch (cause) {
+        throw new AppErrorException(normalizeAppError(cause));
+      }
+    },
+    [refresh],
+  );
+
+  const handleImportMarkdown = useCallback(
+    async (contents: string, filename: string): Promise<string> => {
+      if (!state) {
+        throw new AppErrorException(
+          createAppError("IMPORT", "The workspace is still loading."),
+        );
+      }
+      try {
+        // Parsing happens in the renderer with the shared, side-effect-free
+        // reader so a malformed file never reaches the local store.
+        const draft = parsePromptMarkdown(contents);
+        const saved = await getBridge().savePrompt({
+          ...draft,
+          workspaceId: state.activeWorkspace.id,
+        });
+        await refresh();
+        if (saved?.id) {
+          selectPrompt(saved.id);
+        }
+        return saved?.title ?? draft.title;
+      } catch (cause) {
+        // Naming the file keeps a rejected import actionable without exposing
+        // anything beyond what the picker already showed.
+        const safeName = redactSecrets(
+          sanitizeDownloadFilename(filename, "the selected file"),
+        );
+        const appError = normalizeAppError(cause);
+        throw new AppErrorException({
+          ...appError,
+          detail: appError.detail ? `${safeName}: ${appError.detail}` : safeName,
+        });
+      }
+    },
+    [refresh, selectPrompt, state],
   );
 
   const handleClearRunError = useCallback((): void => {
@@ -1198,9 +1343,14 @@ function App() {
           onCreateConnection={handleCreateConnection}
           onCreatePrompt={handleCreatePrompt}
           onCreateWorkspace={handleCreateWorkspace}
+          onDeleteConnection={handleDeleteConnection}
           onDeleteWorkspace={handleDeleteWorkspace}
           onDraftChange={handleDraftChange}
           onEditConnection={handleEditConnection}
+          onExportPrompt={state.selectedPromptId ? handleExportPromptMarkdown : null}
+          onExportWorkspace={handleExportWorkspace}
+          onImportJson={handleImportJson}
+          onImportMarkdown={handleImportMarkdown}
           onRenameWorkspace={handleRenameWorkspace}
           onResponseCompare={handleResponseCompare}
           onRetryRun={handleRetryRun}
@@ -1210,6 +1360,8 @@ function App() {
           onSearchChange={setSearch}
           onSelectPrompt={handleSelectPrompt}
           onSelectRequest={handleSelectRequest}
+          onSettingsUpdate={handleSettingsUpdate}
+          onThemeChange={handleThemeChange}
           onToggleFavorite={handleToggleFavorite}
           onVariableValuesChange={handleVariableValuesChange}
           onWorkspaceChange={handleWorkspaceChange}

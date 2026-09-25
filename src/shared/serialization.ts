@@ -319,6 +319,72 @@ export function parsePromptMarkdown(markdown: string): PromptDraft {
   });
 }
 
+/** The file kinds Forgeboard can import, keyed by the extension a user picks. */
+export type ImportFileKind = "json" | "markdown";
+
+export const IMPORT_FILE_ACCEPT = ".json,.md,application/json,text/markdown";
+
+const JSON_FILENAME_PATTERN = /\.json$/i;
+const MARKDOWN_FILENAME_PATTERN = /\.(?:md|markdown|mdown|mkdn)$/i;
+// Windows forbids these characters in a filename, and every separator could let
+// a crafted title escape the download directory the renderer offers.
+const UNSAFE_FILENAME_PATTERN = /[\\/:*?"<>|\u0000-\u001f]/g;
+const MAX_DOWNLOAD_FILENAME_LENGTH = 200;
+const MAX_PROMPT_FILENAME_STEM_LENGTH = 60;
+
+/** Resolves the transfer format from a picked filename without reading it. */
+export function detectImportFileKind(filename: string): ImportFileKind | null {
+  const value = typeof filename === "string" ? filename.trim() : "";
+  if (value.length === 0) {
+    return null;
+  }
+  if (JSON_FILENAME_PATTERN.test(value)) {
+    return "json";
+  }
+  if (MARKDOWN_FILENAME_PATTERN.test(value)) {
+    return "markdown";
+  }
+  return null;
+}
+
+/**
+ * Keeps a bridge-provided or prompt-derived filename inside a single download
+ * name. Callers receive a plain file name, never a path, and a fallback when
+ * nothing printable survives.
+ */
+export function sanitizeDownloadFilename(
+  value: string,
+  fallback = "forgeboard-export.json",
+): string {
+  const candidate = typeof value === "string" ? value : "";
+  const base = candidate.split(/[\\/]/).pop() ?? "";
+  const cleaned = base
+    .replace(UNSAFE_FILENAME_PATTERN, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[.\s]+|[.\s]+$/g, "")
+    .trim();
+  if (cleaned.length === 0) {
+    return fallback;
+  }
+  return cleaned.length > MAX_DOWNLOAD_FILENAME_LENGTH
+    ? cleaned.slice(0, MAX_DOWNLOAD_FILENAME_LENGTH)
+    : cleaned;
+}
+
+/** Builds a safe Markdown file name from a prompt title. */
+export function promptMarkdownFilename(prompt: Pick<Prompt, "title">): string {
+  const stem = prompt.title
+    .replace(UNSAFE_FILENAME_PATTERN, " ")
+    .replace(/\s+/g, "-")
+    .replace(/^[.\s-]+|[.\s-]+$/g, "")
+    .slice(0, MAX_PROMPT_FILENAME_STEM_LENGTH)
+    .replace(/[.\s-]+$/g, "");
+  return sanitizeDownloadFilename(
+    stem.length > 0 ? `${stem}.md` : "forgeboard-prompt.md",
+    "forgeboard-prompt.md",
+  );
+}
+
 function parseJsonInput(value: string | unknown): unknown {
   if (typeof value !== "string") {
     return value;
