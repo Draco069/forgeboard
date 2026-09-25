@@ -58,6 +58,8 @@ export interface RequestRecord {
   errorMessage?: string;
   durationMs?: number;
   createdAt: string;
+  /** True when the source connection was removed but history was retained. */
+  retained?: boolean;
 }
 
 export interface Settings {
@@ -73,6 +75,23 @@ export interface StoreDocument {
   requests: RequestRecord[];
   settings: Settings;
   activeWorkspaceId: string;
+}
+
+export interface LoadResult {
+  document: StoreDocument;
+  recoveryNotice?: string;
+}
+
+export interface ImportCounts {
+  workspaces: number;
+  prompts: number;
+  connections: number;
+  requests: number;
+}
+
+export interface ImportReport {
+  counts: ImportCounts;
+  warnings: string[];
 }
 
 export interface AppState {

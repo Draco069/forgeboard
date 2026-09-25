@@ -17,6 +17,7 @@ export const MAX_PROMPT_LENGTH = MAX_PROMPT_BODY_LENGTH;
 export const MAX_TAG_LENGTH = 64;
 export const MAX_TAGS_PER_PROMPT = 50;
 export const MAX_RESPONSE_LENGTH = 1_000_000;
+export const CURRENT_STORE_SCHEMA_VERSION = 1 as const;
 
 const nonEmptyText = z.string().refine((value) => value.trim().length > 0, {
   message: "Value must not be blank.",
@@ -108,6 +109,7 @@ export const requestRecordSchema: z.ZodType<RequestRecord> = z.object({
   errorMessage: z.string().max(4_000).optional(),
   durationMs: z.number().int().nonnegative().max(86_400_000).optional(),
   createdAt: timestampSchema,
+  retained: z.boolean().optional(),
 });
 
 export const settingsSchema: z.ZodType<Settings> = z.object({
@@ -117,7 +119,7 @@ export const settingsSchema: z.ZodType<Settings> = z.object({
 
 export const storeDocumentSchema: z.ZodType<StoreDocument> = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(CURRENT_STORE_SCHEMA_VERSION),
     workspaces: z.array(workspaceSchema),
     prompts: z.array(promptSchema),
     connections: z.array(connectionSchema),
@@ -128,13 +130,22 @@ export const storeDocumentSchema: z.ZodType<StoreDocument> = z
   .superRefine((document, context) => {
     const workspaceIds = new Set(document.workspaces.map((workspace) => workspace.id));
     const connectionIds = new Set(document.connections.map((connection) => connection.id));
-
     if (!workspaceIds.has(document.activeWorkspaceId)) {
       context.addIssue({
         code: "custom",
         path: ["activeWorkspaceId"],
         message: "The active workspace must exist in the document.",
       });
+    }
+
+    for (const [index, workspace] of document.workspaces.entries()) {
+      if (document.workspaces.findIndex((candidate) => candidate.id === workspace.id) !== index) {
+        context.addIssue({
+          code: "custom",
+          path: ["workspaces", index, "id"],
+          message: "Workspace IDs must be unique.",
+        });
+      }
     }
 
     for (const [index, prompt] of document.prompts.entries()) {
@@ -145,6 +156,26 @@ export const storeDocumentSchema: z.ZodType<StoreDocument> = z
           message: "The prompt workspace must exist in the document.",
         });
       }
+      if (document.prompts.findIndex((candidate) => candidate.id === prompt.id) !== index) {
+        context.addIssue({
+          code: "custom",
+          path: ["prompts", index, "id"],
+          message: "Prompt IDs must be unique.",
+        });
+      }
+    }
+
+    for (const [index, connection] of document.connections.entries()) {
+      if (
+        document.connections.findIndex((candidate) => candidate.id === connection.id) !==
+        index
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["connections", index, "id"],
+          message: "Connection IDs must be unique.",
+        });
+      }
     }
 
     for (const [index, request] of document.requests.entries()) {
@@ -153,6 +184,13 @@ export const storeDocumentSchema: z.ZodType<StoreDocument> = z
           code: "custom",
           path: ["requests", index, "workspaceId"],
           message: "The request workspace must exist in the document.",
+        });
+      }
+      if (document.requests.findIndex((candidate) => candidate.id === request.id) !== index) {
+        context.addIssue({
+          code: "custom",
+          path: ["requests", index, "id"],
+          message: "Request IDs must be unique.",
         });
       }
     }
@@ -185,15 +223,33 @@ function formatValidationIssues(error: z.ZodError): string {
     .join("; ");
 }
 
-export function parseStoreDocument(value: unknown): StoreDocument {
-  let candidate = value;
+function parseJsonDocument(value: string | unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
 
-  if (typeof value === "string") {
-    try {
-      candidate = JSON.parse(value) as unknown;
-    } catch {
-      throw createValidationError("The store document is not valid JSON.");
-    }
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    throw createValidationError("The store document is not valid JSON.");
+  }
+}
+
+function readSchemaVersion(value: unknown): number | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const version = (value as { schemaVersion?: unknown }).schemaVersion;
+  return typeof version === "number" && Number.isInteger(version) ? version : undefined;
+}
+
+export function parseStoreDocument(value: unknown): StoreDocument {
+  const candidate = parseJsonDocument(value);
+  const schemaVersion = readSchemaVersion(candidate);
+
+  if (schemaVersion !== undefined && schemaVersion !== CURRENT_STORE_SCHEMA_VERSION) {
+    throw createValidationError(`Unsupported store schema version: ${schemaVersion}.`);
   }
 
   const result = storeDocumentSchema.safeParse(candidate);
@@ -222,6 +278,75 @@ export function parsePromptDraft(value: unknown): PromptDraft {
   return result.data;
 }
 
-export function migrateStoreDocument(value: unknown): StoreDocument {
-  return parseStoreDocument(value);
+export function parseWorkspace(value: unknown): Workspace {
+  const result = workspaceSchema.safeParse(value);
+  if (!result.success) {
+    throw createValidationError(redactSecrets(formatValidationIssues(result.error)));
+  }
+
+  return result.data;
+}
+
+export function parseConnection(value: unknown): Connection {
+  const result = connectionSchema.safeParse(value);
+  if (!result.success) {
+    throw createValidationError(redactSecrets(formatValidationIssues(result.error)));
+  }
+
+  return result.data;
+}
+
+export function parseRequestRecord(value: unknown): RequestRecord {
+  const result = requestRecordSchema.safeParse(value);
+  if (!result.success) {
+    throw createValidationError(redactSecrets(formatValidationIssues(result.error)));
+  }
+
+  return result.data;
+}
+
+export function parseSettings(value: unknown): Settings {
+  const result = settingsSchema.safeParse(value);
+  if (!result.success) {
+    throw createValidationError(redactSecrets(formatValidationIssues(result.error)));
+  }
+
+  return result.data;
+}
+
+export type StoreMigration = (value: unknown) => unknown;
+
+/**
+ * Applies explicit, ordered migrations before validating the current document.
+ * A future schema increment only needs a migration entry keyed by its source
+ * version; unknown versions are rejected instead of being coerced.
+ */
+export function migrateStoreDocument(
+  value: unknown,
+  migrations: Readonly<Record<number, StoreMigration>> = {},
+): StoreDocument {
+  let candidate = parseJsonDocument(value);
+  let version = readSchemaVersion(candidate);
+
+  if (version === undefined) {
+    return parseStoreDocument(candidate);
+  }
+  if (version < 0 || version > CURRENT_STORE_SCHEMA_VERSION) {
+    throw createValidationError(`Unsupported store schema version: ${version}.`);
+  }
+
+  while (version < CURRENT_STORE_SCHEMA_VERSION) {
+    const migration = migrations[version];
+    if (!migration) {
+      throw createValidationError(`No migration is available for store schema version ${version}.`);
+    }
+    candidate = migration(candidate);
+    const nextVersion = readSchemaVersion(candidate);
+    if (nextVersion === undefined || nextVersion <= version) {
+      throw createValidationError("The store migration did not advance the schema version.");
+    }
+    version = nextVersion;
+  }
+
+  return parseStoreDocument(candidate);
 }
