@@ -503,11 +503,11 @@ git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: 
 - IPC input is parsed with shared Zod schemas before any main-process operation.
 - `onRunEvent` returns an unsubscribe function and strips the Electron event object before calling the renderer listener.
 
-- [ ] **Step 1: Write the bridge contract test**
+- [x] **Step 1: Write the bridge contract test**
 
 Assert that the preload source contains only the allowlisted method names and does not expose `ipcRenderer`, `require`, `process`, or filesystem APIs. Add a renderer mock implementing the complete `ForgeboardApi` for component tests.
 
-- [ ] **Step 2: Register typed handlers**
+- [x] **Step 2: Register typed handlers**
 
 Create handlers for:
 
@@ -530,11 +530,11 @@ data:import
 
 Every handler must call the corresponding shared schema, catch errors at the boundary, and return a serialized `AppError` object. No handler may return a credential value, filesystem path, raw `Error`, or provider response body.
 
-- [ ] **Step 3: Deliver request events safely**
+- [x] **Step 3: Deliver request events safely**
 
 `RequestService.run` receives an emitter that calls `getWindow()?.webContents.send("request:event", event)`. Guard against a destroyed window. The preload listener receives only the event payload.
 
-- [ ] **Step 4: Run contract, type, and build checks**
+- [x] **Step 4: Run contract, type, and build checks**
 
 ```bash
 npm test -- --run tests/ipc-contract.test.ts
@@ -544,7 +544,7 @@ npm run build
 
 Expected: no unvalidated IPC surface, no type errors, and a complete Electron build.
 
-- [ ] **Step 5: Commit the secure bridge**
+- [x] **Step 5: Commit the secure bridge**
 
 ```bash
 git add src/main/ipc.ts src/main/index.ts src/preload/index.ts src/renderer/env.d.ts tests/ipc-contract.test.ts
