@@ -1,0 +1,95 @@
+# electron-builder configuration for Forgeboard.
+#
+# `npm run dist` builds the installers for the current host platform only, so
+# Windows, macOS, and Linux artifacts each need a build on that platform.
+# `npm run dist:dir` produces the unpacked application for a quick smoke test.
+#
+# No code-signing or notarization identity is configured here. Builds produced
+# from this file are unsigned; add your own signing configuration before
+# publishing installers to the public.
+
+appId: dev.forgeboard.app
+productName: Forgeboard
+copyright: Copyright (c) 2026 Forgeboard contributors
+
+directories:
+  # Installers and unpacked builds. `dist/` is already ignored by git.
+  output: dist
+
+# Only the compiled output ships. Sources, tests, fixtures, and local data
+# directories are deliberately excluded from the packaged application.
+files:
+  - package.json
+  - out/main/**
+  - out/preload/**
+  - out/renderer/**
+
+asar: true
+compression: normal
+
+# Never run package.json lifecycle scripts from inside the packaged app.
+removePackageScripts: true
+
+# Do not auto-publish; releases are pushed explicitly by a maintainer.
+publish: null
+
+win:
+  target:
+    - nsis
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
+
+# User data belongs to the app, not the installer: `deleteAppDataOnUninstall`
+# stays false so uninstalling never destroys prompts or history.
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Forgeboard
+  deleteAppDataOnUninstall: false
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+  # Unsigned by default. Add `identity` and `notarize` for release builds.
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+dmg:
+  title: ${productName} ${version}
+  contents:
+    - x: 140
+      y: 200
+    - x: 400
+      y: 200
+      type: link
+      path: /Applications
+
+linux:
+  category: Development
+  synopsis: Local-first AI workbench for developers
+  description: >-
+    Forgeboard organizes reusable prompts and runs them against local Ollama or
+    OpenAI-compatible models. Workspaces, prompts, settings, and run history
+    stay on this device.
+  # Electron derives its app_id / WM_CLASS from `desktopName` in package.json.
+  # Keeping the generated .desktop entry in sync is what lets a desktop
+  # environment associate the running window with the launcher.
+  syncDesktopName: true
+  # A .deb control file also requires a project URL. `homepage` or
+  # `repository` is deliberately absent from package.json because this project
+  # has no published repository address yet, so `npm run dist` on Linux builds
+  # the AppImage but stops with "Please specify project homepage" on the .deb
+  # until a maintainer adds one.
+  maintainer: Forgeboard contributors
+  target:
+    - AppImage
+    - deb
+  desktop:
+    entry:
+      Name: Forgeboard
+      Comment: Local-first AI workbench for developers
+      Categories: Development;Utility;

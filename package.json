@@ -4,6 +4,7 @@
   "private": true,
   "description": "A local-first AI workbench for developers",
   "main": "./out/main/index.js",
+  "desktopName": "forgeboard",
   "author": "Forgeboard contributors",
   "license": "MIT",
   "type": "module",
@@ -22,27 +23,27 @@
     "dist:dir": "npm run build && electron-builder --dir"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "5.2.0",
-    "electron": "latest",
-    "electron-vite": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "zod": "latest"
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "latest",
-    "@testing-library/react": "latest",
-    "@testing-library/user-event": "latest",
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "@typescript-eslint/eslint-plugin": "latest",
-    "@typescript-eslint/parser": "latest",
-    "eslint": "latest",
-    "jsdom": "latest",
-    "typescript": "latest",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "26.6.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@typescript-eslint/eslint-plugin": "8.70.1",
+    "@typescript-eslint/parser": "8.70.1",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
+    "eslint": "10.11.0",
+    "jsdom": "30.1.1",
+    "typescript": "6.0.3",
     "vite": "7.3.6",
-    "vitest": "latest",
-    "electron-builder": "latest"
+    "vitest": "5.0.1"
   }
 }
