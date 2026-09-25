@@ -1,3 +1,5 @@
+import type { AppError } from "./errors";
+
 export type ProviderKind = "ollama" | "openai-compatible";
 export type RequestStatus = "success" | "error" | "cancelled";
 export type Theme = "system" | "light" | "dark";
@@ -61,6 +63,38 @@ export interface RequestRecord {
   /** True when the source connection was removed but history was retained. */
   retained?: boolean;
 }
+
+interface RunEventBase {
+  requestId: string;
+}
+
+export type RunEvent =
+  | (RunEventBase & {
+      type: "started";
+      createdAt: string;
+      workspaceId: string;
+      promptId?: string;
+      connectionId: string;
+      provider: ProviderKind;
+      model: string;
+    })
+  | (RunEventBase & {
+      type: "delta";
+      text: string;
+    })
+  | (RunEventBase & {
+      type: "completed";
+      record: RequestRecord;
+    })
+  | (RunEventBase & {
+      type: "error";
+      error: AppError;
+      record: RequestRecord;
+    })
+  | (RunEventBase & {
+      type: "cancelled";
+      record: RequestRecord;
+    });
 
 export interface Settings {
   theme: Theme;
