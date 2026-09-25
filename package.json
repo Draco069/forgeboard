@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "description": "A local-first AI workbench for developers",
+  "homepage": "https://github.com/Draco069/forgeboard#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Draco069/forgeboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Draco069/forgeboard/issues"
+  },
   "main": "./out/main/index.js",
   "desktopName": "forgeboard",
   "author": "Forgeboard contributors",

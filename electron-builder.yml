@@ -79,11 +79,8 @@ linux:
   # Keeping the generated .desktop entry in sync is what lets a desktop
   # environment associate the running window with the launcher.
   syncDesktopName: true
-  # A .deb control file also requires a project URL. `homepage` or
-  # `repository` is deliberately absent from package.json because this project
-  # has no published repository address yet, so `npm run dist` on Linux builds
-  # the AppImage but stops with "Please specify project homepage" on the .deb
-  # until a maintainer adds one.
+  # The published repository URL is declared in package.json, which supplies
+  # the project homepage required by the .deb control file.
   maintainer: Forgeboard contributors
   target:
     - AppImage

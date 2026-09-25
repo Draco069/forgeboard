@@ -155,8 +155,8 @@ Two things to know before you publish anything:
   - The Linux `AppImage` target fails on Windows because it cannot create the symlinks it
     needs. `electron-builder --linux --dir` does work from any host if you only need to
     inspect the packaged Linux layout.
-  - The Linux `.deb` target additionally needs a `homepage` or `repository` URL in
-    `package.json` (see the roadmap below).
+  - The Linux `.deb` target uses the repository URL declared in `package.json`; build it
+    on a Linux runner.
 - **The configuration in this repository does not sign anything.** `appId` is a
   placeholder (`dev.forgeboard.app`), and no code-signing identity, notarization
   profile, or update feed is configured. Artifacts built from `electron-builder.yml` as
@@ -240,14 +240,11 @@ request must pass, and the project's ground rules. Participation is governed by 
 
 ## Roadmap
 
-**Before the first public release**
+**Before a signed release**
 
 - Code signing, macOS notarization, and an `appId` under a domain the project controls.
 - An application icon; without one, electron-builder falls back to the default
   Electron icon on every platform.
-- A `homepage` or `repository` URL in `package.json`. The Linux `.deb` target refuses to
-  build without one, so on Linux only the `AppImage` target builds from this repository
-  as committed.
 - Release artifacts built for Windows, macOS, and Linux.
 - A published maintainer contact for security reports and conduct reports.
 
