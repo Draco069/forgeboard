@@ -20,6 +20,7 @@
 - Keep the renderer dependent on a narrow typed preload API; do not enable Node integration.
 - Use mocked providers in tests; tests must not require real API keys or internet access.
 - Use focused files with one clear responsibility and keep provider-specific parsing in the main process.
+- Use Node.js 22.22.2 or newer for development and CI, matching the locked toolchain requirements.
 
 ---
 
@@ -822,7 +823,7 @@ Configure `appId`, product name, artifact directory, and Windows/macOS/Linux tar
 
 - [ ] **Step 4: Add GitHub Actions CI**
 
-Use Node 20 with `npm ci`, then run:
+Use Node.js 22.22.2 or newer with `npm ci`, then run:
 
 ```yaml
 - run: npm run lint
