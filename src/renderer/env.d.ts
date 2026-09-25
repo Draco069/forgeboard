@@ -1,7 +1,9 @@
-interface ForgeboardBridge {
-  ping: () => Promise<import("../shared/types").AppPing>;
+import type { ForgeboardApi } from "../shared/types";
+
+declare global {
+  interface Window {
+    forgeboard: ForgeboardApi;
+  }
 }
 
-interface Window {
-  forgeboard: ForgeboardBridge;
-}
+export {};

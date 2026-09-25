@@ -1,13 +1,24 @@
 import { z } from "zod";
 import { createValidationError, redactSecrets } from "./errors";
 import type {
+  AppPing,
+  AppState,
+  CancelRequestInput,
   Connection,
+  ConnectionSaveInput,
+  ExportData,
+  ImportReport,
   Prompt,
   PromptDraft,
+  PromptSaveInput,
   RequestRecord,
+  RunRequestInput,
   Settings,
+  SettingsUpdateInput,
   StoreDocument,
   Workspace,
+  WorkspaceCreateInput,
+  WorkspaceRenameInput,
 } from "./types";
 
 export const MAX_PROMPT_TITLE_LENGTH = 200;
@@ -17,6 +28,9 @@ export const MAX_PROMPT_LENGTH = MAX_PROMPT_BODY_LENGTH;
 export const MAX_TAG_LENGTH = 64;
 export const MAX_TAGS_PER_PROMPT = 50;
 export const MAX_RESPONSE_LENGTH = 1_000_000;
+export const MAX_CREDENTIAL_LENGTH = 16_384;
+export const MAX_IMPORT_LENGTH = 10_000_000;
+export const MAX_REQUEST_TIMEOUT_MS = 60_000;
 export const CURRENT_STORE_SCHEMA_VERSION = 1 as const;
 
 const nonEmptyText = z.string().refine((value) => value.trim().length > 0, {
@@ -132,6 +146,94 @@ export const settingsSchema: z.ZodType<Settings> = z.object({
   defaultConnectionId: idSchema.optional(),
 });
 
+export const workspaceCreateInputSchema: z.ZodType<WorkspaceCreateInput> = z
+  .object({
+    name: nonEmptyText.max(200),
+  })
+  .strict();
+
+export const workspaceRenameInputSchema: z.ZodType<WorkspaceRenameInput> = z
+  .object({
+    id: idSchema,
+    name: nonEmptyText.max(200),
+  })
+  .strict();
+
+export const recordIdInputSchema = z
+  .object({
+    id: idSchema,
+  })
+  .strict();
+
+export const promptSaveInputSchema: z.ZodType<PromptSaveInput> = z
+  .object({
+    id: idSchema.optional(),
+    workspaceId: idSchema.optional(),
+    title: titleSchema,
+    description: descriptionSchema,
+    body: z.string().max(MAX_PROMPT_BODY_LENGTH),
+    tags: tagsSchema,
+    favorite: z.boolean(),
+  })
+  .strict();
+
+export const connectionSaveInputSchema: z.ZodType<ConnectionSaveInput> = z
+  .object({
+    id: idSchema.optional(),
+    name: nonEmptyText.max(200),
+    provider: providerSchema,
+    baseUrl: httpUrlSchema,
+    model: nonEmptyText.max(200),
+    credential: z.string().max(MAX_CREDENTIAL_LENGTH).optional(),
+  })
+  .strict();
+
+export const settingsUpdateInputSchema: z.ZodType<SettingsUpdateInput> = z
+  .object({
+    theme: themeSchema.optional(),
+    defaultConnectionId: idSchema.optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one setting must be provided.",
+  });
+
+export const runRequestInputSchema: z.ZodType<RunRequestInput> = z
+  .object({
+    workspaceId: idSchema.optional(),
+    promptId: idSchema.optional(),
+    connectionId: idSchema,
+    renderedPrompt: z.string().max(MAX_PROMPT_BODY_LENGTH),
+    stream: z.boolean().optional(),
+    timeoutMs: z.number().int().min(1).max(MAX_REQUEST_TIMEOUT_MS).optional(),
+  })
+  .strict();
+
+export const cancelRequestInputSchema: z.ZodType<CancelRequestInput> = z
+  .object({
+    requestId: idSchema,
+  })
+  .strict();
+
+export const importDataInputSchema = z
+  .string()
+  .min(1)
+  .max(MAX_IMPORT_LENGTH);
+
+export const importDataPayloadSchema = z.union([
+  importDataInputSchema,
+  z.object({ contents: importDataInputSchema }).strict(),
+]);
+
+export const emptyInputSchema = z.undefined();
+
+export const appPingSchema: z.ZodType<AppPing> = z
+  .object({
+    app: nonEmptyText.max(100),
+    version: nonEmptyText.max(100),
+  })
+  .strict();
+
 export const storeDocumentSchema: z.ZodType<StoreDocument> = z
   .object({
     schemaVersion: z.literal(CURRENT_STORE_SCHEMA_VERSION),
@@ -221,6 +323,42 @@ export const storeDocumentSchema: z.ZodType<StoreDocument> = z
       });
     }
   });
+
+export const appStateSchema: z.ZodType<AppState> = z
+  .object({
+    document: storeDocumentSchema,
+    activeWorkspace: workspaceSchema,
+    recoveryNotice: z.string().max(4_000).optional(),
+    credentialsAvailable: z.boolean(),
+  })
+  .strict();
+
+export const exportDataSchema: z.ZodType<ExportData> = z
+  .object({
+    filename: z
+      .string()
+      .min(1)
+      .max(255)
+      .refine((value) => !/[\\/]/.test(value), {
+        message: "Export filenames must not contain filesystem separators.",
+      }),
+    contents: z.string(),
+  })
+  .strict();
+
+export const importReportSchema: z.ZodType<ImportReport> = z
+  .object({
+    counts: z
+      .object({
+        workspaces: z.number().int().nonnegative(),
+        prompts: z.number().int().nonnegative(),
+        connections: z.number().int().nonnegative(),
+        requests: z.number().int().nonnegative(),
+      })
+      .strict(),
+    warnings: z.array(z.string().max(2_000)).max(100),
+  })
+  .strict();
 
 export const TimestampSchema = timestampSchema;
 export const WorkspaceSchema = workspaceSchema;

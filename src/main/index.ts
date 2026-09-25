@@ -1,13 +1,15 @@
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow } from "electron";
+import { SafeStorageCredentialVault } from "./credentials";
+import { registerIpcHandlers } from "./ipc";
+import { RequestService } from "./request-service";
+import { ForgeboardStore } from "./store";
 
-ipcMain.handle("app:ping", () => ({
-  app: "Forgeboard",
-  version: app.getVersion(),
-}));
+let mainWindow: BrowserWindow | undefined;
+let startupPromise: Promise<void> | undefined;
 
 function createWindow(): void {
-  const mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1100,
     height: 760,
     minWidth: 800,
@@ -21,40 +23,78 @@ function createWindow(): void {
       sandbox: true,
     },
   });
+  mainWindow = window;
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
+  window.once("ready-to-show", () => {
+    window.show();
+  });
+  window.once("closed", () => {
+    if (mainWindow === window) {
+      mainWindow = undefined;
+    }
   });
 
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  mainWindow.webContents.on("will-navigate", (event) => {
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  window.webContents.on("will-navigate", (event) => {
     event.preventDefault();
   });
-  mainWindow.webContents.on("will-redirect", (event) => {
+  window.webContents.on("will-redirect", (event) => {
     event.preventDefault();
   });
-  mainWindow.webContents.session.setPermissionRequestHandler(
+  window.webContents.session.setPermissionRequestHandler(
     (_webContents, _permission, callback) => callback(false),
   );
 
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   if (!app.isPackaged && rendererUrl) {
-    void mainWindow.loadURL(rendererUrl);
+    void window.loadURL(rendererUrl);
     return;
   }
 
-  void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
+  void window.loadFile(join(__dirname, "../renderer/index.html"));
 }
 
-app.whenReady().then(() => {
-  createWindow();
+async function initializeMainProcess(): Promise<void> {
+  if (startupPromise) {
+    return startupPromise;
+  }
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+  startupPromise = (async () => {
+    const userData = app.getPath("userData");
+    const credentials = new SafeStorageCredentialVault(userData);
+    const store = new ForgeboardStore(userData, credentials);
+
+    // Do not register state or mutation handlers until the persisted document
+    // has been loaded and any recovery notice is known.
+    await store.load();
+    const requestService = new RequestService(store);
+    registerIpcHandlers({
+      store,
+      credentials,
+      requestService,
+      getWindow: () => mainWindow,
+    });
+  })();
+
+  return startupPromise;
+}
+
+void app
+  .whenReady()
+  .then(async () => {
+    await initializeMainProcess();
+    createWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  })
+  .catch(() => {
+    // Startup failures should not expose implementation details to a renderer.
+    app.quit();
   });
-});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
