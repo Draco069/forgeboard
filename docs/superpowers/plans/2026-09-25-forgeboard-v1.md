@@ -636,27 +636,27 @@ git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: 
 - `VariableFields` receives `variables: string[]`, `values: Record<string, string>`, and `onChange`.
 - `useKeyboardShortcuts` binds search focus, new prompt, and run actions without capturing keys while a text field is active.
 
-- [ ] **Step 1: Write prompt workflow tests**
+- [x] **Step 1: Write prompt workflow tests**
 
 Cover creating a prompt, editing title/body/tags, searching by title and tag, favoriting, detecting variables, showing missing-variable errors, saving a draft, and selecting a prompt from the list.
 
-- [ ] **Step 2: Implement the prompt list and filters**
+- [x] **Step 2: Implement the prompt list and filters**
 
 Render a semantic list with a search input, tag chips, favorite toggle, selected state, and an empty result message. Debounce only the visual filter input; keep the source array unchanged. Use stable keys based on prompt IDs.
 
-- [ ] **Step 3: Implement the editor and variable fields**
+- [x] **Step 3: Implement the editor and variable fields**
 
 The editor uses labeled inputs and a textarea. The variable field list is generated from `extractVariables(body)`, preserves entered values while the user edits, and marks blank fields as invalid. Saving calls `savePrompt` and selects the returned prompt ID.
 
-- [ ] **Step 4: Implement workspace management**
+- [x] **Step 4: Implement workspace management**
 
 Use a menu for create, rename, and delete. Require a non-empty name, show a confirmation dialog for deletion, and switch to another workspace when the active workspace is deleted. After each mutation, call the bridge and refresh state.
 
-- [ ] **Step 5: Add keyboard shortcuts and focus behavior**
+- [x] **Step 5: Add keyboard shortcuts and focus behavior**
 
 Bind `Ctrl/Cmd+K` to focus search, `Ctrl/Cmd+N` to create a prompt, and `Ctrl/Cmd+Enter` to run the current prompt. Ignore shortcuts when the target is an input, textarea, select, or contenteditable element.
 
-- [ ] **Step 6: Run prompt tests and build**
+- [x] **Step 6: Run prompt tests and build**
 
 ```bash
 npm test -- --run tests/prompt-library.test.tsx
@@ -666,7 +666,7 @@ npm run build
 
 Expected: prompt CRUD and variable validation tests pass.
 
-- [ ] **Step 7: Commit the prompt library**
+- [x] **Step 7: Commit the prompt library**
 
 ```bash
 git add src/renderer/components/WorkspaceMenu.tsx src/renderer/components/PromptList.tsx src/renderer/components/PromptEditor.tsx src/renderer/components/VariableFields.tsx src/renderer/components/TagFilter.tsx src/renderer/hooks/useKeyboardShortcuts.ts tests/prompt-library.test.tsx
