@@ -141,6 +141,7 @@ function isAppError(value: unknown): value is AppError {
     record &&
       isAppErrorCode(record.code) &&
       typeof record.message === "string" &&
+      (record.detail === undefined || typeof record.detail === "string") &&
       typeof record.retryable === "boolean",
   );
 }
@@ -330,7 +331,10 @@ export function normalizeAppError(
   const rawText = readErrorText(error, new Set<unknown>());
   const code = appError?.code ?? inferErrorCode(error, rawText);
   const rawDetail = appError?.detail ?? rawText;
-  const detail = rawDetail ? limitDetail(redactSecrets(rawDetail, secrets)) : undefined;
+  const detail =
+    typeof rawDetail === "string" && rawDetail.length > 0
+      ? limitDetail(redactSecrets(rawDetail, secrets))
+      : undefined;
 
   return {
     code,

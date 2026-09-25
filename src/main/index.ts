@@ -26,6 +26,17 @@ function createWindow(): void {
     mainWindow.show();
   });
 
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event) => {
+    event.preventDefault();
+  });
+  mainWindow.webContents.on("will-redirect", (event) => {
+    event.preventDefault();
+  });
+  mainWindow.webContents.session.setPermissionRequestHandler(
+    (_webContents, _permission, callback) => callback(false),
+  );
+
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   if (!app.isPackaged && rendererUrl) {
     void mainWindow.loadURL(rendererUrl);

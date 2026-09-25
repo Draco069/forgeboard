@@ -14,6 +14,8 @@
   --accent: #c65332;
   --accent-strong: #963c27;
   --accent-soft: #f5ddd2;
+  --button-background: #963c27;
+  --button-text: #fffaf4;
   --success: #2b7b57;
   --warning: #b47727;
   --danger: #a73d35;
@@ -35,6 +37,8 @@
     --accent: #ef8b67;
     --accent-strong: #ffad8b;
     --accent-soft: #3c2620;
+    --button-background: #ef8b67;
+    --button-text: #101713;
     --success: #70c59b;
     --warning: #e6b264;
     --danger: #ef8b83;
@@ -217,10 +221,10 @@ main {
 .refresh-button {
   min-height: 2.75rem;
   padding: 0.65rem 1rem;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--button-background);
   border-radius: 0.75rem;
-  color: #fffaf4;
-  background: var(--accent);
+  color: var(--button-text);
+  background: var(--button-background);
   cursor: pointer;
   font-size: 0.88rem;
   font-weight: 750;

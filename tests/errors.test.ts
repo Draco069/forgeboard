@@ -58,4 +58,16 @@ describe("application errors", () => {
       "Bearer [REDACTED]",
     );
   });
+
+  it("returns a safe error for a malformed AppError shape", () => {
+    const result = normalizeAppError({
+      code: "PROVIDER",
+      message: "The provider could not complete the request.",
+      detail: 42,
+      retryable: true,
+    });
+
+    expect(result.code).toBe("PROVIDER");
+    expect(result.detail).toBe("The provider could not complete the request. PROVIDER");
+  });
 });
