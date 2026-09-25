@@ -1,19 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { normalizeAppError } from "../shared/errors";
-import { extractVariables } from "../shared/prompt";
+import { extractVariables, renderPrompt } from "../shared/prompt";
 import type {
   AppError,
   AppPing,
+  Connection,
+  ConnectionSaveInput,
   Prompt,
   PromptDraft,
   PromptSaveInput,
+  RequestRecord,
+  RunRequestInput,
   Theme,
 } from "../shared/types";
 import { AppShell } from "./components/AppShell";
+import { ComparisonView } from "./components/ComparisonView";
+import { ConnectionDialog } from "./components/ConnectionDialog";
 import { EmptyState } from "./components/EmptyState";
+import { HistoryList } from "./components/HistoryList";
 import { Icon } from "./components/Icon";
 import { PromptEditor } from "./components/PromptEditor";
 import { PromptList } from "./components/PromptList";
+import { ResponseViewer } from "./components/ResponseViewer";
+import { RunPanel } from "./components/RunPanel";
 import { WorkspaceMenu } from "./components/WorkspaceMenu";
 import { useForgeboard } from "./hooks/useForgeboard";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -206,6 +215,20 @@ interface PromptLibraryProps {
   onCreateWorkspace: (name: string) => Promise<void>;
   onRenameWorkspace: (workspaceId: string, name: string) => Promise<void>;
   onDeleteWorkspace: (workspaceId: string) => Promise<void>;
+  connections: Connection[];
+  selectedConnectionId?: string;
+  activeRun: LiveRun | null;
+  runResult: RequestRecord | null;
+  runError: AppError | null;
+  runPending: boolean;
+  onConnectionChange: (connectionId: string) => void;
+  onCreateConnection: () => void;
+  onEditConnection: (connection: Connection) => void;
+  onRun: (input: RunRequestInput) => Promise<void>;
+  onCancelRun: (requestId: string) => Promise<void>;
+  onResponseCompare: (request: RequestRecord) => void;
+  onRetryRun: () => void;
+  onClearRunError: () => void;
 }
 
 function PromptLibrary({
@@ -228,11 +251,33 @@ function PromptLibrary({
   onCreateWorkspace,
   onRenameWorkspace,
   onDeleteWorkspace,
+  connections,
+  selectedConnectionId,
+  activeRun,
+  runResult,
+  runError,
+  runPending,
+  onConnectionChange,
+  onCreateConnection,
+  onEditConnection,
+  onRun,
+  onCancelRun,
+  onResponseCompare,
+  onRetryRun,
+  onClearRunError,
 }: PromptLibraryProps) {
   const prompts = useMemo(
     () => state.document.prompts.filter((prompt) => prompt.workspaceId === state.activeWorkspace.id),
     [state.activeWorkspace.id, state.document.prompts],
   );
+  const visibleRun =
+    activeRun &&
+    activeRun.workspaceId === state.activeWorkspace.id &&
+    (state.selectedPromptId
+      ? activeRun.promptId === state.selectedPromptId
+      : activeRun.promptId === undefined)
+      ? activeRun
+      : null;
 
   return (
     <div className="prompt-library-view">
@@ -276,41 +321,125 @@ function PromptLibrary({
           variableValues={variableValues}
         />
       </div>
+
+      <div className="run-workflow">
+        <RunPanel
+          activeRun={activeRun}
+          connections={connections}
+          error={runError}
+          isRunning={runPending}
+          onCancel={onCancelRun}
+          onConnectionChange={onConnectionChange}
+          onDismissError={onClearRunError}
+          onCreateConnection={onCreateConnection}
+          onEditConnection={onEditConnection}
+          onRetry={onRetryRun}
+          onRun={onRun}
+          promptId={state.selectedPromptId}
+          promptBody={draft.body}
+          selectedConnectionId={selectedConnectionId}
+          showVariableFields={false}
+          variableValues={variableValues}
+          workspaceId={state.activeWorkspace.id}
+        />
+        {visibleRun || runResult ? (
+          <ResponseViewer
+            error={runError ?? visibleRun?.error}
+            liveText={visibleRun?.response}
+            onCompare={onResponseCompare}
+            onDismissError={onClearRunError}
+            onRetry={onRetryRun}
+            record={runResult ?? visibleRun?.record}
+            status={runResult ? "completed" : visibleRun?.status === "running" ? "running" : undefined}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function HistoryOverview({ state }: { state: RendererState }) {
-  const requests = state.document.requests.filter(
-    (request) => request.workspaceId === state.activeWorkspace.id,
-  );
+interface HistoryViewProps {
+  state: RendererState;
+  selectedRequestId?: string;
+  comparisonIds: string[];
+  comparisonRecords: [RequestRecord, RequestRecord] | null;
+  onSelectRequest: (request: RequestRecord) => void;
+  onComparisonChange: (requestIds: string[]) => void;
+  onCompare: (left: RequestRecord, right: RequestRecord) => void;
+  onCloseComparison: () => void;
+  onResponseCompare: (request: RequestRecord) => void;
+}
 
-  if (requests.length === 0) {
-    return (
-      <EmptyState
-        description="When you run a prompt, its provider, model, timing, and response will be collected here for a calm review."
-        eyebrow="Run history"
-        icon="history"
-        title="No responses to review yet."
-      />
-    );
-  }
+function HistoryView({
+  state,
+  selectedRequestId,
+  comparisonIds,
+  comparisonRecords,
+  onSelectRequest,
+  onComparisonChange,
+  onCompare,
+  onCloseComparison,
+  onResponseCompare,
+}: HistoryViewProps) {
+  const requests = useMemo(
+    () =>
+      state.document.requests.filter(
+        (request) => request.workspaceId === state.activeWorkspace.id,
+      ),
+    [state.activeWorkspace.id, state.document.requests],
+  );
+  const selectedRequest = requests.find((request) => request.id === selectedRequestId);
 
   return (
-    <section className="view-panel" aria-labelledby="history-overview-title">
+    <div className="history-view">
       <div className="view-intro">
         <p className="section-kicker">Run history</p>
-        <h1 id="history-overview-title">A record of your model work.</h1>
+        <h1>A record of your model work.</h1>
         <p>
           {requests.length} {requests.length === 1 ? "run is" : "runs are"} retained in this
-          workspace. Detailed history and comparison tools are next.
+          workspace. Review a response, copy it, or select two runs to compare their shape.
         </p>
       </div>
-      <div className="quiet-next-step">
-        <Icon name="history" size={17} />
-        <span>Open a run from the future history view to compare responses side by side.</span>
-      </div>
-    </section>
+
+      {requests.length === 0 ? (
+        <EmptyState
+          description="When you run a prompt, its provider, model, timing, and response will be collected here for a calm review."
+          eyebrow="Run history"
+          icon="history"
+          title="No responses to review yet."
+        />
+      ) : (
+        <div className="history-content">
+          <HistoryList
+            comparisonIds={comparisonIds}
+            onCompare={onCompare}
+            onComparisonChange={onComparisonChange}
+            onSelect={onSelectRequest}
+            requests={requests}
+            selectedRequestId={selectedRequestId}
+          />
+          {selectedRequest ? (
+            <ResponseViewer
+              onCompare={onResponseCompare}
+              record={selectedRequest}
+            />
+          ) : (
+            <div className="history-selection-empty" role="status">
+              <Icon name="history" size={19} />
+              <p>Choose a run above to inspect its prompt and response.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {comparisonRecords ? (
+        <ComparisonView
+          left={comparisonRecords[0]}
+          onClose={onCloseComparison}
+          right={comparisonRecords[1]}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -345,6 +474,26 @@ interface ActiveViewProps {
   onRenameWorkspace: (workspaceId: string, name: string) => Promise<void>;
   onDeleteWorkspace: (workspaceId: string) => Promise<void>;
   promptSearchRef: RefObject<HTMLInputElement | null>;
+  connections: Connection[];
+  selectedConnectionId?: string;
+  activeRun: LiveRun | null;
+  runResult: RequestRecord | null;
+  runError: AppError | null;
+  runPending: boolean;
+  onConnectionChange: (connectionId: string) => void;
+  onCreateConnection: () => void;
+  onEditConnection: (connection: Connection) => void;
+  onRun: (input: RunRequestInput) => Promise<void>;
+  onCancelRun: (requestId: string) => Promise<void>;
+  onResponseCompare: (request: RequestRecord) => void;
+  onRetryRun: () => void;
+  onClearRunError: () => void;
+  comparisonIds: string[];
+  comparisonRecords: [RequestRecord, RequestRecord] | null;
+  onSelectRequest: (request: RequestRecord) => void;
+  onComparisonChange: (requestIds: string[]) => void;
+  onCompare: (left: RequestRecord, right: RequestRecord) => void;
+  onCloseComparison: () => void;
 }
 
 function ActiveView({
@@ -367,19 +516,49 @@ function ActiveView({
   onRenameWorkspace,
   onDeleteWorkspace,
   promptSearchRef,
+  connections,
+  selectedConnectionId,
+  activeRun,
+  runResult,
+  runError,
+  runPending,
+  onConnectionChange,
+  onCreateConnection,
+  onEditConnection,
+  onRun,
+  onCancelRun,
+  onResponseCompare,
+  onRetryRun,
+  onClearRunError,
+  comparisonIds,
+  comparisonRecords,
+  onSelectRequest,
+  onComparisonChange,
+  onCompare,
+  onCloseComparison,
 }: ActiveViewProps) {
   return (
     <>
       <ActiveRunSummary run={state.activeRun} />
       {state.view === "prompts" ? (
         <PromptLibrary
+          activeRun={activeRun}
+          connections={connections}
           draft={promptDraft}
           onCancelPrompt={onCancelPrompt}
+          onCancelRun={onCancelRun}
+          onConnectionChange={onConnectionChange}
+          onCreateConnection={onCreateConnection}
           onCreatePrompt={onCreatePrompt}
           onCreateWorkspace={onCreateWorkspace}
           onDeleteWorkspace={onDeleteWorkspace}
           onDraftChange={onDraftChange}
+          onEditConnection={onEditConnection}
           onRenameWorkspace={onRenameWorkspace}
+          onResponseCompare={onResponseCompare}
+          onRetryRun={onRetryRun}
+          onClearRunError={onClearRunError}
+          onRun={onRun}
           onSavePrompt={onSavePrompt}
           onSearchChange={onSearchChange}
           onSelectPrompt={onSelectPrompt}
@@ -389,12 +568,26 @@ function ActiveView({
           promptError={promptError}
           promptNotice={promptNotice}
           promptSearchRef={promptSearchRef}
+          runError={runError}
+          runPending={runPending}
+          runResult={runResult}
           savingPrompt={savingPrompt}
+          selectedConnectionId={selectedConnectionId}
           state={state}
           variableValues={variableValues}
         />
       ) : state.view === "history" ? (
-        <HistoryOverview state={state} />
+        <HistoryView
+          comparisonIds={comparisonIds}
+          comparisonRecords={comparisonRecords}
+          onCloseComparison={onCloseComparison}
+          onCompare={onCompare}
+          onComparisonChange={onComparisonChange}
+          onResponseCompare={onResponseCompare}
+          onSelectRequest={onSelectRequest}
+          selectedRequestId={state.selectedRequestId}
+          state={state}
+        />
       ) : (
         <SettingsOverview />
       )}
@@ -418,6 +611,7 @@ function App() {
     refresh,
     navigate,
     selectPrompt,
+    selectRequest,
     setSearch,
     setTheme,
   } = useForgeboard();
@@ -428,13 +622,60 @@ function App() {
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState<PromptDraft>(emptyPromptDraft);
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | undefined>();
+  const [connectionDialog, setConnectionDialog] = useState<
+    { mode: "create" } | { mode: "edit"; connection: Connection } | null
+  >(null);
+  const [runResult, setRunResult] = useState<RequestRecord | null>(null);
+  const [runError, setRunError] = useState<AppError | null>(null);
+  const [runPending, setRunPending] = useState(false);
+  const [historyComparisonIds, setHistoryComparisonIds] = useState<string[]>([]);
+  const [comparisonRecords, setComparisonRecords] = useState<
+    [RequestRecord, RequestRecord] | null
+  >(null);
   const promptSearchRef = useRef<HTMLInputElement>(null);
+  const connectionDialogTriggerRef = useRef<HTMLButtonElement>(null);
   const selectedPromptIdRef = useRef<string | undefined>(undefined);
   const valuesByPromptRef = useRef<Record<string, Record<string, string>>>({});
 
   useEffect(() => {
     document.documentElement.dataset.theme = state?.theme ?? "system";
   }, [state?.theme]);
+
+  useEffect(() => {
+    if (!state) {
+      return;
+    }
+    const availableIds = new Set(state.document.connections.map((connection) => connection.id));
+    setSelectedConnectionId((current) =>
+      current && availableIds.has(current) ? current : undefined,
+    );
+  }, [state?.document.connections]);
+
+  useEffect(() => {
+    setHistoryComparisonIds((current) => {
+      if (!state) {
+        return current;
+      }
+      const availableIds = new Set(
+        state.document.requests
+          .filter((request) => request.workspaceId === state.activeWorkspace.id)
+          .map((request) => request.id),
+      );
+      const next = current.filter((id) => availableIds.has(id)).slice(-2);
+      return next.length === current.length ? current : next;
+    });
+    setComparisonRecords((current) => {
+      if (!current) {
+        return null;
+      }
+      return state?.document.requests.some(
+        (request) => request.id === current[0].id,
+      ) && state.document.requests.some((request) => request.id === current[1].id)
+        ? current
+        : null;
+    });
+  }, [state?.activeWorkspace.id, state?.document.requests]);
 
   useEffect(() => {
     if (!state) {
@@ -468,12 +709,29 @@ function App() {
     setPromptNotice(null);
   }, [state]);
 
+  const activeConnectionId = useMemo(() => {
+    if (!state) {
+      return undefined;
+    }
+    const connections = state.document.connections;
+    if (selectedConnectionId && connections.some((item) => item.id === selectedConnectionId)) {
+      return selectedConnectionId;
+    }
+    const defaultId = state.document.settings.defaultConnectionId;
+    if (defaultId && connections.some((item) => item.id === defaultId)) {
+      return defaultId;
+    }
+    return connections[0]?.id;
+  }, [selectedConnectionId, state]);
+
   const handleCreatePrompt = useCallback(() => {
     selectedPromptIdRef.current = undefined;
     setPromptDraft({ ...emptyPromptDraft, tags: [] });
     setVariableValues({});
     setPromptError(null);
     setPromptNotice(null);
+    setRunResult(null);
+    setRunError(null);
     setSearch("");
     navigate("prompts");
     selectPrompt(undefined);
@@ -489,6 +747,8 @@ function App() {
       setVariableValues({ ...(valuesByPromptRef.current[prompt.id] ?? {}) });
       setPromptError(null);
       setPromptNotice(null);
+      setRunResult(null);
+      setRunError(null);
       selectPrompt(prompt.id);
     },
     [selectPrompt, state],
@@ -601,6 +861,36 @@ function App() {
     [refresh],
   );
 
+  const handleConnectionChange = useCallback((connectionId: string): void => {
+    setSelectedConnectionId(connectionId || undefined);
+  }, []);
+
+  const handleCreateConnection = useCallback((): void => {
+    setConnectionDialog({ mode: "create" });
+  }, []);
+
+  const handleEditConnection = useCallback((connection: Connection): void => {
+    setConnectionDialog({ mode: "edit", connection });
+  }, []);
+
+  const handleConnectionDialogClose = useCallback((): void => {
+    setConnectionDialog(null);
+  }, []);
+
+  const handleConnectionSave = useCallback(
+    async (input: ConnectionSaveInput): Promise<Connection | undefined> => {
+      const savedConnection = await getBridge().saveConnection(input);
+      await refresh();
+      if (savedConnection?.id) {
+        setSelectedConnectionId(savedConnection.id);
+      } else if (input.id) {
+        setSelectedConnectionId(input.id);
+      }
+      return savedConnection;
+    },
+    [refresh],
+  );
+
   const handleWorkspaceChange = useCallback(
     (workspaceId: string) => {
       if (!state || workspaceId === state.activeWorkspace.id) {
@@ -611,6 +901,8 @@ function App() {
       selectedPromptIdRef.current = undefined;
       setPromptDraft({ ...emptyPromptDraft, tags: [] });
       setVariableValues({});
+      setRunResult(null);
+      setRunError(null);
       selectPrompt(undefined);
       void (async () => {
         try {
@@ -674,6 +966,8 @@ function App() {
           selectedPromptIdRef.current = undefined;
           setPromptDraft({ ...emptyPromptDraft, tags: [] });
           setVariableValues({});
+          setRunResult(null);
+          setRunError(null);
           selectPrompt(undefined);
         }
         await refresh();
@@ -686,6 +980,154 @@ function App() {
     [refresh, selectPrompt, state],
   );
 
+  const handleSelectRequest = useCallback(
+    (request: RequestRecord): void => {
+      if (!state || request.workspaceId !== state.activeWorkspace.id) {
+        return;
+      }
+      selectRequest(request.id);
+    },
+    [selectRequest, state],
+  );
+
+  const handleComparisonChange = useCallback((requestIds: string[]): void => {
+    setHistoryComparisonIds(requestIds.slice(-2));
+    if (requestIds.length < 2) {
+      setComparisonRecords(null);
+    }
+  }, []);
+
+  const handleCompare = useCallback(
+    (left: RequestRecord, right: RequestRecord): void => {
+      if (left.workspaceId !== right.workspaceId) {
+        return;
+      }
+      setHistoryComparisonIds([left.id, right.id]);
+      setComparisonRecords([left, right]);
+    },
+    [],
+  );
+
+  const handleCloseComparison = useCallback((): void => {
+    setComparisonRecords(null);
+    setHistoryComparisonIds([]);
+  }, []);
+
+  const handleResponseCompare = useCallback(
+    (request: RequestRecord): void => {
+      const nextIds = [...historyComparisonIds.filter((id) => id !== request.id), request.id].slice(-2);
+      setHistoryComparisonIds(nextIds);
+      if (nextIds.length === 2 && state) {
+        const left = state.document.requests.find((candidate) => candidate.id === nextIds[0]);
+        const right = state.document.requests.find((candidate) => candidate.id === nextIds[1]);
+        if (left && right) {
+          setComparisonRecords([left, right]);
+        }
+      }
+    },
+    [historyComparisonIds, state],
+  );
+
+  const handleRunRequest = useCallback(
+    async (input: RunRequestInput): Promise<void> => {
+      if (!state) {
+        return;
+      }
+
+      setRunResult(null);
+      setRunError(null);
+      setRunPending(true);
+      try {
+        const record = await getBridge().runRequest({
+          ...input,
+          workspaceId: state.activeWorkspace.id,
+        });
+        if (record) {
+          setRunResult(record);
+        }
+        await refresh();
+      } catch (cause) {
+        const appError = normalizeAppError(cause);
+        if (appError.code !== "CANCELLED") {
+          setRunError(appError);
+        }
+        await refresh();
+      } finally {
+        setRunPending(false);
+      }
+    },
+    [refresh, state],
+  );
+
+  const handleRetryRun = useCallback((): void => {
+    if (!state || runPending || state.activeRun?.status === "running") {
+      return;
+    }
+    const rendered = renderPrompt(promptDraft.body, variableValues);
+    const connection = state.document.connections.find(
+      (candidate) => candidate.id === activeConnectionId,
+    );
+    if (!connection || promptDraft.body.trim().length === 0 || rendered.missing.length > 0) {
+      return;
+    }
+    void handleRunRequest({
+      ...(state.selectedPromptId ? { promptId: state.selectedPromptId } : {}),
+      connectionId: connection.id,
+      renderedPrompt: rendered.text,
+      stream: true,
+      timeoutMs: 60_000,
+    });
+  }, [
+    activeConnectionId,
+    handleRunRequest,
+    promptDraft.body,
+    runPending,
+    state,
+    variableValues,
+  ]);
+
+  const handleCancelRun = useCallback(async (requestId: string): Promise<void> => {
+    setRunError(null);
+    try {
+      await getBridge().cancelRequest(requestId);
+    } catch (cause) {
+      setRunError(normalizeAppError(cause));
+    }
+  }, []);
+
+  const handleKeyboardRun = useCallback(() => {
+    if (!state || runPending || state.activeRun?.status === "running") {
+      return;
+    }
+    const rendered = renderPrompt(promptDraft.body, variableValues);
+    if (promptDraft.title.trim().length === 0) {
+      setPromptError("Add a title before running this prompt.");
+      return;
+    }
+    if (rendered.missing.length > 0) {
+      setPromptError(`Fill in the required variables: ${rendered.missing.join(", ")}.`);
+      return;
+    }
+    const connection =
+      state.document.connections.find((candidate) => candidate.id === selectedConnectionId) ??
+      state.document.connections.find(
+        (candidate) => candidate.id === state.document.settings.defaultConnectionId,
+      ) ??
+      state.document.connections[0];
+    if (!connection) {
+      setPromptError("Choose or add a model connection before running this prompt.");
+      return;
+    }
+    setPromptError(null);
+    void handleRunRequest({
+      ...(state.selectedPromptId ? { promptId: state.selectedPromptId } : {}),
+      connectionId: connection.id,
+      renderedPrompt: rendered.text,
+      stream: true,
+      timeoutMs: 60_000,
+    });
+  }, [handleRunRequest, promptDraft.body, promptDraft.title, runPending, selectedConnectionId, state, variableValues]);
+
   const handleFocusSearch = useCallback(() => {
     const input = promptSearchRef.current ?? document.getElementById("prompt-search");
     if (input instanceof HTMLInputElement) {
@@ -696,24 +1138,10 @@ function App() {
     window.requestAnimationFrame(() => document.getElementById("prompt-search")?.focus());
   }, [navigate]);
 
-  const handleRun = useCallback(() => {
-    const missingVariables = extractVariables(promptDraft.body).filter(
-      (variable) => !(variableValues[variable] ?? "").trim(),
-    );
-    if (promptDraft.title.trim().length === 0) {
-      setPromptError("Add a title before running this prompt.");
-    } else if (missingVariables.length > 0) {
-      setPromptError(`Fill in the required variables: ${missingVariables.join(", ")}.`);
-    } else {
-      setPromptError(null);
-      setPromptNotice("Prompt execution will be connected in the next workbench step.");
-    }
-  }, [promptDraft.body, promptDraft.title, variableValues]);
-
   useKeyboardShortcuts({
     onFocusSearch: handleFocusSearch,
     onNewPrompt: handleCreatePrompt,
-    onRun: handleRun,
+    onRun: handleKeyboardRun,
   });
 
   const handleThemeChange = useCallback(
@@ -723,11 +1151,16 @@ function App() {
     [setTheme],
   );
 
+  const handleClearRunError = useCallback((): void => {
+    setRunError(null);
+  }, []);
+
   const displayState = state ?? loadingState;
   const initializationError = state ? error?.message ?? workspaceError : null;
 
   return (
-    <AppShell
+    <>
+      <AppShell
       bridgePing={bridgeStatus.ping}
       bridgeUnavailable={bridgeStatus.unavailable}
       initializationError={
@@ -752,15 +1185,31 @@ function App() {
     >
       {state ? (
         <ActiveView
+          activeRun={state.activeRun}
+          comparisonIds={historyComparisonIds}
+          comparisonRecords={comparisonRecords}
+          connections={state.document.connections}
           onCancelPrompt={handleCancelPrompt}
+          onCancelRun={handleCancelRun}
+          onCloseComparison={handleCloseComparison}
+          onCompare={handleCompare}
+          onComparisonChange={handleComparisonChange}
+          onConnectionChange={handleConnectionChange}
+          onCreateConnection={handleCreateConnection}
           onCreatePrompt={handleCreatePrompt}
           onCreateWorkspace={handleCreateWorkspace}
           onDeleteWorkspace={handleDeleteWorkspace}
           onDraftChange={handleDraftChange}
+          onEditConnection={handleEditConnection}
           onRenameWorkspace={handleRenameWorkspace}
+          onResponseCompare={handleResponseCompare}
+          onRetryRun={handleRetryRun}
+          onClearRunError={handleClearRunError}
+          onRun={handleRunRequest}
           onSavePrompt={handleSavePrompt}
           onSearchChange={setSearch}
           onSelectPrompt={handleSelectPrompt}
+          onSelectRequest={handleSelectRequest}
           onToggleFavorite={handleToggleFavorite}
           onVariableValuesChange={handleVariableValuesChange}
           onWorkspaceChange={handleWorkspaceChange}
@@ -768,7 +1217,11 @@ function App() {
           promptError={promptError}
           promptNotice={promptNotice}
           promptSearchRef={promptSearchRef}
+          runError={runError}
+          runPending={runPending}
+          runResult={runResult}
           savingPrompt={savingPrompt}
+          selectedConnectionId={activeConnectionId}
           state={state}
           variableValues={variableValues}
         />
@@ -781,7 +1234,18 @@ function App() {
           status={bridgeStatus}
         />
       )}
-    </AppShell>
+      </AppShell>
+      {connectionDialog ? (
+        <ConnectionDialog
+          connection={connectionDialog.mode === "edit" ? connectionDialog.connection : null}
+          credentialsAvailable={state?.credentialsAvailable ?? true}
+          onClose={handleConnectionDialogClose}
+          onSave={handleConnectionSave}
+          open
+          triggerRef={connectionDialogTriggerRef}
+        />
+      ) : null}
+    </>
   );
 }
 
