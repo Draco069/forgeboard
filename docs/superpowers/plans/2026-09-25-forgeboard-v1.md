@@ -344,11 +344,11 @@ git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: 
 - `CredentialVault` methods are `has(id): Promise<boolean>`, `get(id): Promise<string | undefined>`, `set(id, value): Promise<boolean>`, and `delete(id): Promise<void>`.
 - `SecretCrypto` is injectable for tests and defaults to Electron `safeStorage` in production.
 
-- [ ] **Step 1: Write failing store tests**
+- [x] **Step 1: Write failing store tests**
 
 Use `mkdtemp()` and a fake crypto provider. Verify a default workspace exists, prompts can be saved and reloaded, an invalid main file recovers from a valid backup, and a failed write does not remove the prior valid document.
 
-- [ ] **Step 2: Implement the default document and schema migration**
+- [x] **Step 2: Implement the default document and schema migration**
 
 Create `src/main/defaults.ts` with a fresh document:
 
@@ -375,7 +375,7 @@ export function createDefaultDocument(): StoreDocument {
 
 `parseStoreDocument` should reject unsupported schema versions with a typed import/storage error and provide a migration function for future version increments.
 
-- [ ] **Step 3: Implement atomic persistence and recovery**
+- [x] **Step 3: Implement atomic persistence and recovery**
 
 Store files as:
 
@@ -387,15 +387,15 @@ Store files as:
 
 Before replacing the main file, copy the currently valid file to the next backup slot. Write to `forgeboard.json.tmp`, flush it, then rename it over the main file. Keep the last three valid backups. If the main file fails validation, load the newest valid backup and set `recoveryNotice` for the renderer.
 
-- [ ] **Step 4: Implement `safeStorage`-backed credentials**
+- [x] **Step 4: Implement `safeStorage`-backed credentials**
 
 Store an encrypted map of connection IDs to credential values. Base64-encode encrypted buffers in the credential file. Never include the credential value in `StoreDocument`, returned `Connection` objects, or error text. If `safeStorage.isEncryptionAvailable()` is false, keep new values in an in-memory map, return `false` from `set`, and set the public connection's `hasCredential` to false after restart.
 
-- [ ] **Step 5: Add CRUD and import/export methods**
+- [x] **Step 5: Add CRUD and import/export methods**
 
 Implement workspace, prompt, connection, request, and settings methods. Enforce referential cleanup: deleting a workspace removes its prompts and request records; deleting a connection marks its history records as retained but does not delete the historical response. `importSnapshot` validates the complete document before replacing state and returns counts plus warnings.
 
-- [ ] **Step 6: Run store and credential tests**
+- [x] **Step 6: Run store and credential tests**
 
 ```bash
 npm test -- --run tests/store.test.ts tests/credentials.test.ts
@@ -404,7 +404,7 @@ npm run typecheck
 
 Expected: persistence, backup recovery, session-only credentials, and import validation tests pass.
 
-- [ ] **Step 7: Commit the persistence layer**
+- [x] **Step 7: Commit the persistence layer**
 
 ```bash
 git add src/main/store.ts src/main/credentials.ts src/main/defaults.ts src/shared/types.ts src/shared/validation.ts tests/store.test.ts tests/credentials.test.ts
