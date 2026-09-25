@@ -431,7 +431,7 @@ git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: 
 - `RequestService.run(input: RunInput, emit: (event: RunEvent) => void): Promise<RequestRecord>`.
 - `RequestService.cancel(requestId: string): boolean`.
 
-- [ ] **Step 1: Write failing provider integration tests**
+- [x] **Step 1: Write failing provider integration tests**
 
 Start a local `http.createServer()` and test:
 
@@ -452,25 +452,25 @@ it("normalizes an Ollama response", async () => {
 
 Add tests for OpenAI-compatible JSON, OpenAI SSE chunks, Ollama NDJSON chunks, 401, 429, 500, malformed JSON, and aborted requests.
 
-- [ ] **Step 2: Implement URL and request validation**
+- [x] **Step 2: Implement URL and request validation**
 
 Only allow `http:` and `https:` URLs. Reject credentials embedded in URLs, empty model names, and prompts over the shared limit. Normalize trailing slashes without changing the path prefix. Use a 60-second default timeout and allow a caller-provided lower/equal upper bound.
 
-- [ ] **Step 3: Implement non-streaming and streaming parsing**
+- [x] **Step 3: Implement non-streaming and streaming parsing**
 
 For OpenAI-compatible providers, POST to `/chat/completions` with `{ model, messages: [{ role: "user", content: prompt }], stream }`. Parse JSON `choices[0].message.content` for non-streaming responses and parse `data:` SSE lines by extracting `choices[0].delta.content`.
 
 For Ollama, POST to `/api/chat` with `{ model, messages, stream }`. Parse `message.content` for non-streaming responses and each newline-delimited JSON object's `message.content` for streaming responses. Accumulate chunks in the adapter and emit each delta once.
 
-- [ ] **Step 4: Map provider failures to safe app errors**
+- [x] **Step 4: Map provider failures to safe app errors**
 
 Map HTTP 401/403 to `AUTHENTICATION`, 429 to `RATE_LIMIT`, aborts to `CANCELLED`, timeout aborts to `TIMEOUT`, network failures to `OFFLINE`, and all other provider failures to `PROVIDER`. Pass credential values to the redactor before formatting a technical detail.
 
-- [ ] **Step 5: Implement `RequestService`**
+- [x] **Step 5: Implement `RequestService`**
 
 Create a request ID in the main process, store an `AbortController` in a map, emit a `started` event, run the selected adapter, accumulate deltas, persist a `RequestRecord`, emit `completed` or `error`, and remove the controller in a `finally` block. A cancelled record has `status: "cancelled"` and an empty response if no text arrived.
 
-- [ ] **Step 6: Run provider and lifecycle tests**
+- [x] **Step 6: Run provider and lifecycle tests**
 
 ```bash
 npm test -- --run tests/providers.test.ts tests/request-service.test.ts
@@ -479,7 +479,7 @@ npm run typecheck
 
 Expected: all mocked provider responses, stream chunks, error categories, cancellation, and timeout cases pass without network access.
 
-- [ ] **Step 7: Commit the provider layer**
+- [x] **Step 7: Commit the provider layer**
 
 ```bash
 git add src/main/providers.ts src/main/request-service.ts src/shared/types.ts src/shared/errors.ts tests/providers.test.ts tests/request-service.test.ts
