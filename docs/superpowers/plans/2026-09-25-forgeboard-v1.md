@@ -809,19 +809,19 @@ git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: 
 - CI runs on pushes and pull requests and validates the same commands contributors run locally.
 - README commands match the actual package scripts exactly.
 
-- [ ] **Step 1: Write the README**
+- [x] **Step 1: Write the README**
 
 Include a concise product description, feature list, privacy statement, supported provider setup, `npm install`, `npm run dev`, `npm test`, `npm run build`, `npm run dist`, project structure, contribution link, security link, and roadmap. Clearly state that remote prompts are sent only to the selected provider when the user runs a request.
 
-- [ ] **Step 2: Add repository governance files**
+- [x] **Step 2: Add repository governance files**
 
 Add the MIT license text, a contribution guide with setup and test expectations, a security policy requesting private disclosure for vulnerabilities, and a Contributor Covenant-style code of conduct. Do not include personal data or real credentials in any example.
 
-- [ ] **Step 3: Add electron-builder configuration**
+- [x] **Step 3: Add electron-builder configuration**
 
 Configure `appId`, product name, artifact directory, and Windows/macOS/Linux targets. Ensure the packaged app includes the built main, preload, and renderer output and does not include test fixtures or local data.
 
-- [ ] **Step 4: Add GitHub Actions CI**
+- [x] **Step 4: Add GitHub Actions CI**
 
 Use Node.js 22.22.2 or newer with `npm ci`, then run:
 
@@ -834,7 +834,7 @@ Use Node.js 22.22.2 or newer with `npm ci`, then run:
 
 Cache the npm dependency directory. Do not run packaging on every pull request unless the workflow has the required platform permissions and signing setup.
 
-- [ ] **Step 5: Run the final verification and commit documentation**
+- [x] **Step 5: Run the final verification and commit documentation**
 
 ```bash
 npm run lint
