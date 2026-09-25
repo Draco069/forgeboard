@@ -573,15 +573,15 @@ git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: 
 - `AppShell` accepts `children`, `state`, and view-navigation callbacks.
 - Every icon-only control has an accessible label and a visible tooltip or text alternative.
 
-- [ ] **Step 1: Write renderer state tests**
+- [x] **Step 1: Write renderer state tests**
 
 Mock the bridge, load an initial state, assert that the active workspace and navigation render, and assert that a `RunEvent` updates only the relevant active request state.
 
-- [ ] **Step 2: Implement the bridge hook**
+- [x] **Step 2: Implement the bridge hook**
 
 On mount, call `getState`, store the result, and subscribe to `onRunEvent`. Clean up the subscription on unmount. Expose a typed `refresh` function for mutation results and a visible initialization error state instead of throwing during render.
 
-- [ ] **Step 3: Implement the shell components**
+- [x] **Step 3: Implement the shell components**
 
 Build a three-region layout:
 
@@ -596,11 +596,11 @@ Build a three-region layout:
 
 Use CSS variables for `--bg`, `--surface`, `--surface-raised`, `--text`, `--muted`, `--accent`, `--border`, and `--danger`. Include responsive breakpoints for narrow windows, `prefers-reduced-motion`, keyboard focus rings, and semantic headings.
 
-- [ ] **Step 4: Replace the placeholder renderer with the shell**
+- [x] **Step 4: Replace the placeholder renderer with the shell**
 
 Keep the loading state centered, show a recovery banner when `state.recoveryNotice` exists, and use an empty state with a clear “Create your first prompt” action when no prompt exists.
 
-- [ ] **Step 5: Run renderer tests and build**
+- [x] **Step 5: Run renderer tests and build**
 
 ```bash
 npm test -- --run tests/renderer-state.test.tsx
@@ -610,7 +610,7 @@ npm run build
 
 Expected: the shell renders with mocked state, the event subscription cleans up, and the production renderer bundles.
 
-- [ ] **Step 6: Commit the renderer shell**
+- [x] **Step 6: Commit the renderer shell**
 
 ```bash
 git add src/renderer/hooks src/renderer/state.ts src/renderer/components src/renderer/App.tsx src/renderer/styles.css tests/renderer-state.test.tsx
