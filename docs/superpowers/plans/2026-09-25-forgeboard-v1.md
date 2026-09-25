@@ -212,7 +212,7 @@ Expected: all three commands pass.
 
 ```bash
 git add package.json package-lock.json electron.vite.config.ts tsconfig.json tsconfig.node.json vitest.config.ts eslint.config.js .gitignore src tests/app-shell.test.tsx
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "chore: bootstrap Forgeboard desktop app"
+git commit -m "chore: bootstrap Forgeboard desktop app"
 ```
 
 ---
@@ -320,7 +320,7 @@ Expected: all tests pass and TypeScript reports no errors.
 
 ```bash
 git add src/shared src/renderer/env.d.ts tests/prompt.test.ts tests/errors.test.ts tests/serialization.test.ts
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: add shared prompt and data model"
+git commit -m "feat: add shared prompt and data model"
 ```
 
 ---
@@ -408,7 +408,7 @@ Expected: persistence, backup recovery, session-only credentials, and import val
 
 ```bash
 git add src/main/store.ts src/main/credentials.ts src/main/defaults.ts src/shared/types.ts src/shared/validation.ts tests/store.test.ts tests/credentials.test.ts
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: add local encrypted data store"
+git commit -m "feat: add local encrypted data store"
 ```
 
 ---
@@ -483,7 +483,7 @@ Expected: all mocked provider responses, stream chunks, error categories, cancel
 
 ```bash
 git add src/main/providers.ts src/main/request-service.ts src/shared/types.ts src/shared/errors.ts tests/providers.test.ts tests/request-service.test.ts
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: add AI provider request lifecycle"
+git commit -m "feat: add AI provider request lifecycle"
 ```
 
 ---
@@ -548,7 +548,7 @@ Expected: no unvalidated IPC surface, no type errors, and a complete Electron bu
 
 ```bash
 git add src/main/ipc.ts src/main/index.ts src/preload/index.ts src/renderer/env.d.ts tests/ipc-contract.test.ts
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: expose secure Forgeboard IPC bridge"
+git commit -m "feat: expose secure Forgeboard IPC bridge"
 ```
 
 ---
@@ -614,7 +614,7 @@ Expected: the shell renders with mocked state, the event subscription cleans up,
 
 ```bash
 git add src/renderer/hooks src/renderer/state.ts src/renderer/components src/renderer/App.tsx src/renderer/styles.css tests/renderer-state.test.tsx
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: add Forgeboard renderer shell"
+git commit -m "feat: add Forgeboard renderer shell"
 ```
 
 ---
@@ -670,7 +670,7 @@ Expected: prompt CRUD and variable validation tests pass.
 
 ```bash
 git add src/renderer/components/WorkspaceMenu.tsx src/renderer/components/PromptList.tsx src/renderer/components/PromptEditor.tsx src/renderer/components/VariableFields.tsx src/renderer/components/TagFilter.tsx src/renderer/hooks/useKeyboardShortcuts.ts tests/prompt-library.test.tsx
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: add prompt library workflows"
+git commit -m "feat: add prompt library workflows"
 ```
 
 ---
@@ -737,7 +737,7 @@ Expected: connection, streaming, cancellation, error, history, and comparison te
 
 ```bash
 git add src/renderer/components/ConnectionDialog.tsx src/renderer/components/RunPanel.tsx src/renderer/components/ResponseViewer.tsx src/renderer/components/HistoryList.tsx src/renderer/components/ComparisonView.tsx src/renderer/components/ErrorNotice.tsx src/renderer/App.tsx src/renderer/styles.css tests/request-workflow.test.tsx
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: add model connections and run history"
+git commit -m "feat: add model connections and run history"
 ```
 
 ---
@@ -787,7 +787,7 @@ Expected: every command exits successfully, the unpacked Electron application is
 
 ```bash
 git add src/renderer src/shared tests/settings-and-transfer.test.tsx
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: harden settings and workspace transfers"
+git commit -m "feat: harden settings and workspace transfers"
 ```
 
 ---
@@ -842,7 +842,7 @@ npm run typecheck
 npm test
 npm run build
 git add README.md LICENSE CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md electron-builder.yml .github/workflows/ci.yml package.json package-lock.json
-git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "docs: prepare Forgeboard open source release"
+git commit -m "docs: prepare Forgeboard open source release"
 ```
 
 Expected: all checks pass and the repository is ready to publish after the maintainer adds their preferred signing and release configuration.
