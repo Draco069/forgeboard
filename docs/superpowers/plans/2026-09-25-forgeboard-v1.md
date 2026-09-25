@@ -694,11 +694,11 @@ git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: 
 - `ResponseViewer` accepts a `RequestRecord`, an optional live text buffer, and an `onCompare` callback.
 - `ComparisonView` accepts two `RequestRecord` values and displays model, duration, prompt, and response side by side.
 
-- [ ] **Step 1: Write request workflow tests**
+- [x] **Step 1: Write request workflow tests**
 
 Mock a successful `runRequest`, emit a `started` event and two `delta` events, then assert the live response updates and the completed history item appears. Cover connection validation, cancel, authentication error, timeout error, and comparison selection.
 
-- [ ] **Step 2: Implement the connection dialog**
+- [x] **Step 2: Implement the connection dialog**
 
 Offer provider choices with these defaults:
 
@@ -711,19 +711,19 @@ const providerDefaults = {
 
 Validate the URL and model before saving. Keep the credential input masked, clear it after save, and show `hasCredential` as “Saved securely” only when the bridge reports it.
 
-- [ ] **Step 3: Implement the run panel**
+- [x] **Step 3: Implement the run panel**
 
 Render the selected provider, model, timeout, variable inputs, and a prominent run button. Disable duplicate submissions while a request is active. The cancel button calls `cancelRequest(requestId)` and leaves the prompt intact.
 
-- [ ] **Step 4: Implement live response and error presentation**
+- [x] **Step 4: Implement live response and error presentation**
 
 Subscribe to `RunEvent` deltas through `useForgeboard`. Show a status pill for queued, running, completed, failed, and cancelled states. Render response text as text content, never raw HTML. `ErrorNotice` shows a friendly message, a retry action when retryable, and a collapsed safe technical detail.
 
-- [ ] **Step 5: Implement history and comparison**
+- [x] **Step 5: Implement history and comparison**
 
 Group history by date, show provider/model/status/duration, allow selecting two records, and open a modal or split view for comparison. Make response text selectable and copyable with a button that reports success through an accessible live region.
 
-- [ ] **Step 6: Run request tests and build**
+- [x] **Step 6: Run request tests and build**
 
 ```bash
 npm test -- --run tests/request-workflow.test.tsx
@@ -733,7 +733,7 @@ npm run build
 
 Expected: connection, streaming, cancellation, error, history, and comparison tests pass.
 
-- [ ] **Step 7: Commit execution workflows**
+- [x] **Step 7: Commit execution workflows**
 
 ```bash
 git add src/renderer/components/ConnectionDialog.tsx src/renderer/components/RunPanel.tsx src/renderer/components/ResponseViewer.tsx src/renderer/components/HistoryList.tsx src/renderer/components/ComparisonView.tsx src/renderer/components/ErrorNotice.tsx src/renderer/App.tsx src/renderer/styles.css tests/request-workflow.test.tsx
