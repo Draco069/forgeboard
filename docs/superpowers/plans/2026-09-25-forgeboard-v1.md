@@ -759,19 +759,19 @@ git -c user.name="OpenCode" -c user.email="opencode@localhost" commit -m "feat: 
 - `updateSettings` accepts only `theme` and `defaultConnectionId`.
 - Settings UI never displays an existing credential or a secret-bearing connection value.
 
-- [ ] **Step 1: Write settings and transfer tests**
+- [x] **Step 1: Write settings and transfer tests**
 
 Assert theme changes, default connection selection, JSON download, Markdown prompt export, invalid import rejection, and recovery/warning rendering.
 
-- [ ] **Step 2: Implement settings and transfer controls**
+- [x] **Step 2: Implement settings and transfer controls**
 
 Add a settings view with theme buttons, a default model connection selector, an export button, an import file input, and a privacy explanation. Accept `.json` and `.md` files, read them in the renderer, and pass only file contents to the bridge. Show warnings without discarding the current workspace when an import fails.
 
-- [ ] **Step 3: Add accessibility and visual polish**
+- [x] **Step 3: Add accessibility and visual polish**
 
 Verify semantic headings, labels for every form field, `aria-live` status regions, focus restoration after dialogs, sufficient contrast, reduced-motion behavior, and responsive layouts at 320px, 768px, and 1280px widths. Ensure all destructive controls have confirmation and all icon-only controls have accessible names.
 
-- [ ] **Step 4: Run the full local verification suite**
+- [x] **Step 4: Run the full local verification suite**
 
 ```bash
 npm run lint
@@ -783,7 +783,7 @@ npm run dist:dir
 
 Expected: every command exits successfully, the unpacked Electron application is generated, and no test requires an external model endpoint.
 
-- [ ] **Step 5: Commit the release hardening**
+- [x] **Step 5: Commit the release hardening**
 
 ```bash
 git add src/renderer src/shared tests/settings-and-transfer.test.tsx
